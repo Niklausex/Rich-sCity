@@ -24,7 +24,7 @@
       mapW: 32, mapH: 24,
       buildings: [
         { uid: 'b1', id: 'office_wood', name: '市长办公室', x: 14, y: 10, w: 2, h: 2 },
-        { uid: 'b2', id: 'parking', name: '办公室停车位', x: 16, y: 11, w: 2, h: 1 }
+        { uid: 'b2', id: 'parking', name: '办公室停车场', x: 16, y: 10, w: 3, h: 3 }
       ],
       nextUid: 3,
       vehicles: [],            // 已解锁车辆id
@@ -51,8 +51,38 @@
       if (!raw) return null;
       const s = JSON.parse(raw);
       if (!s || !s.version) return null;
+      migrate(s);
       return s;
     } catch (e) { return null; }
+  }
+
+  /* 老存档迁移：建筑尺寸调整后自动修正（如 停车场 2x1 → 3x3） */
+  function migrate(s) {
+    const free = (x, y, w, h, ignoreUid) => {
+      if (x < 0 || y < 0 || x + w > s.mapW || y + h > s.mapH) return false;
+      return !s.buildings.some(b => b.uid !== ignoreUid &&
+        x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y);
+    };
+    for (const b of s.buildings) {
+      const info = CATALOG.findBuilding(b.id) || (b.id === 'office_wood' ? CATALOG.OFFICE : null);
+      if (!info || b.id === 'road') continue;
+      const tw = Math.max(info.w, info.h), th = Math.min(info.w, info.h);
+      const rotated = b.w < b.h;
+      const nw = rotated ? th : tw, nh = rotated ? tw : th;
+      if (b.w === nw && b.h === nh) continue;
+      // 尺寸变了：先试原地扩张，再螺旋找附近空位
+      let placed = false;
+      for (let rad = 0; rad <= Math.max(s.mapW, s.mapH) && !placed; rad++) {
+        for (let dy = -rad; dy <= rad && !placed; dy++) {
+          for (let dx = -rad; dx <= rad && !placed; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== rad) continue;
+            if (free(b.x + dx, b.y + dy, nw, nh, b.uid)) {
+              b.x += dx; b.y += dy; b.w = nw; b.h = nh; placed = true;
+            }
+          }
+        }
+      }
+    }
   }
 
   function reset() { localStorage.removeItem(SAVE_KEY); }

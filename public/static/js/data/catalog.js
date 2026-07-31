@@ -119,7 +119,7 @@ CATALOG.BUILDINGS = [
   { id: 'stadium', cat: 'public', name: '体育场', icon: '🏟️', cost: 1800, happy: 25, w: 4, h: 3, fl: 2, color: '#3a8a6a', desc: '举办比赛，幸福度+25', unlockPop: 30 },
   { id: 'tv_tower', cat: 'public', name: '电视塔', icon: '🗼', cost: 2800, happy: 28, w: 2, h: 2, fl: 9, color: '#c04a4a', desc: '城市地标！幸福度+28', unlockPop: 40 },
   // —— 配套 ——
-  { id: 'parking', cat: 'support', name: '停车场', icon: '🅿️', cost: 60, happy: 2, w: 2, h: 1, fl: 0, color: '#5a6a7a', desc: '停放城市车辆，幸福度+2', unlockPop: 0 },
+  { id: 'parking', cat: 'support', name: '停车场', icon: '🅿️', cost: 60, happy: 2, w: 3, h: 3, fl: 0, color: '#5a6a7a', desc: '停放城市车辆，幸福度+2', unlockPop: 0 },
   { id: 'bus_stop', cat: 'support', name: '公交站', icon: '🚏', cost: 90, happy: 4, w: 1, h: 1, fl: 0.6, color: '#3a7ab0', desc: '方便出行，幸福度+4', unlockPop: 10 },
   { id: 'gas', cat: 'support', name: '加油站', icon: '⛽', cost: 200, happy: 3, income: 50, w: 2, h: 2, fl: 0.8, color: '#c05a2a', desc: '给汽车加油，营业额50元/周', unlockPop: 12 },
   { id: 'solar', cat: 'support', name: '太阳能电站', icon: '🔆', cost: 300, happy: 4, w: 2, h: 1, fl: 0.3, color: '#2a5a8a', desc: '清洁能源，幸福度+4', unlockPop: 14 },
