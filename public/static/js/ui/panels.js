@@ -59,6 +59,17 @@
     CityMap.draw();
   }
 
+  /* ---------- 居民头像：有美术贴图用贴图，否则用SVG小人 ---------- */
+  function portrait(r, scale) {
+    const s = scale || 1;
+    const spriteId = window.Assets && Assets.charSprite(r);
+    if (spriteId) {
+      const hat = r.hat ? `<span style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:${20 * s}px">${CATALOG.findOutfit(r.hat)?.emoji || ''}</span>` : '';
+      return `<span style="position:relative;display:inline-block">${hat}<img src="/static/assets/${spriteId}.webp" style="height:${74 * s}px;width:auto;display:block;filter:drop-shadow(0 3px 4px rgba(0,0,0,.25))" alt="${r.name}"></span>`;
+    }
+    return minifigSVG(r, scale);
+  }
+
   /* ---------- 乐高小人 SVG ---------- */
   function minifigSVG(r, scale) {
     const hat = r.hat ? `<text x="50" y="16" font-size="26" text-anchor="middle">${CATALOG.findOutfit(r.hat)?.emoji || ''}</text>` : '';
@@ -121,7 +132,7 @@
       const need = CATALOG.xpNeeded(r.level);
       const dq = S.dailyQuestions.find(q => q.residentId === r.id && !q.done);
       html += `<div class="card">
-        ${minifigSVG(r)}
+        ${portrait(r)}
         <div class="grow">
           <h4>${r.name} <span class="tag tag-blue">Lv.${r.level} ${career.icon}${career.title}</span></h4>
           <p>周薪 ${career.salary}元 · 答对 ${r.totalRight}题 · <span class="streak-flame"><i class="fas fa-fire"></i> 连对${r.streak}</span>（最高${r.bestStreak}）</p>
@@ -157,7 +168,7 @@
     const ownedShirtColors = S.outfits.filter(o => o.startsWith('shirt_')).map(o => CATALOG.findOutfit(o).color);
     const hatItems = CATALOG.OUTFITS.filter(o => o.type === 'hat');
     let html = `
-      <div style="text-align:center;margin-bottom:10px">${minifigSVG(r, 1.6)}</div>
+      <div style="text-align:center;margin-bottom:10px">${portrait(r, 1.6)}</div>
       <div class="form-row"><label>👕 上衣颜色</label><div class="color-swatches">${swatches('shirt', [...CATALOG.FREE_COLORS, ...ownedShirtColors])}</div></div>
       <div class="form-row"><label>👖 裤子颜色</label><div class="color-swatches">${swatches('pants', CATALOG.FREE_COLORS)}</div></div>
       <div class="form-row"><label>🎩 帽子（用城市收入解锁）</label>
@@ -214,8 +225,11 @@
     let html = `<div class="panel-tabs">${cats.map(c => `<button class="ptab ${buildTab === c[0] ? 'active' : ''}" data-tab="${c[0]}">${c[1]}</button>`).join('')}</div><div class="shop-grid">`;
     for (const b of CATALOG.BUILDINGS.filter(x => x.cat === buildTab)) {
       const locked = S.residents.length < b.unlockPop;
+      const thumb = window.Assets && Assets.has(b.id)
+        ? `<img src="/static/assets/${b.id}.webp" style="height:52px;width:auto;max-width:72px;object-fit:contain" alt="${b.name}">`
+        : b.icon;
       html += `<div class="shop-item ${locked ? 'locked' : ''}" data-build="${locked ? '' : b.id}">
-        <div class="s-icon">${b.icon}</div><div class="s-name">${b.name}</div>
+        <div class="s-icon">${thumb}</div><div class="s-name">${b.name}</div>
         <div class="s-desc">${b.desc}<br>占地${b.w}×${b.h}格</div>
         <div class="s-cost">${locked ? `🔒 人口${b.unlockPop}解锁` : '💰' + b.cost}</div>
       </div>`;
@@ -414,5 +428,5 @@
   /* ---------- 城市名点击修改 ---------- */
   $('city-name').onclick = () => openPanel('settings');
 
-  window.UI = { toast, hint, confetti, refreshTop, openPanel, closePanel, showBuildingMenu, promptRename, minifigSVG, renderPanel: render };
+  window.UI = { toast, hint, confetti, refreshTop, openPanel, closePanel, showBuildingMenu, promptRename, minifigSVG, portrait, renderPanel: render };
 })();

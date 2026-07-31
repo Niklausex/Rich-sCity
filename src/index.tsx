@@ -104,6 +104,7 @@ app.get('/', (c) => {
 <script src="/static/js/data/catalog.js"></script>
 <script src="/static/js/engine/state.js"></script>
 <script src="/static/js/engine/game.js"></script>
+<script src="/static/js/render/assets.js"></script>
 <script src="/static/js/render/map.js"></script>
 <script src="/static/js/ui/panels.js"></script>
 <script src="/static/js/ui/quiz.js"></script>

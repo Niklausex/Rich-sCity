@@ -3,6 +3,7 @@
  * ============================================================ */
 (function () {
   const isNew = Game.init();
+  Assets.preloadAll(); // 后台预加载全部美术贴图
 
   // 显示游戏
   setTimeout(() => {

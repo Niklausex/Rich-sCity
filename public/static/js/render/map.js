@@ -229,17 +229,50 @@
     }
   }
 
+  /* ---------- 建筑贴图渲染（美术资产） ---------- */
+  function drawBuildingSprite(b, im, pB2, pC, pD, selected) {
+    // 贴图宽度对齐等距占地菱形宽度，底部锚在前角 pC
+    const footW = pB2.x - pD.x;
+    const w = footW * 1.1;
+    const h = w * (im.naturalHeight / im.naturalWidth);
+    const cx = (pD.x + pB2.x) / 2;
+    const by = pC.y + TH() * 0.22;   // 底部稍微下沉，盖住菱形前角
+    // 柔和接地阴影
+    ctx.beginPath();
+    ctx.ellipse(cx, pC.y - (pC.y - (pD.y + pB2.y) / 2) / 2, footW * 0.5, footW * 0.16, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(30,60,20,0.18)'; ctx.fill();
+    if (selected) {
+      ctx.save();
+      ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 16;
+      ctx.drawImage(im, cx - w / 2, by - h, w, h);
+      ctx.restore();
+    } else {
+      ctx.drawImage(im, cx - w / 2, by - h, w, h);
+    }
+  }
+
   /* ---------- 立体积木建筑 ---------- */
-  function drawBuildingIso(b) {
+  function drawBuildingIso(b, selected) {
     const info = Game.bInfo(b.id);
     if (!info) return;
     const fl = info.fl != null ? info.fl : 1;
     const z = fl * TW * FLOOR_H;
     const pA = iso(b.x, b.y), pB = iso(b.x + b.w, b.y), pC = iso(b.x + b.w, b.y + b.h), pD = iso(b.x, b.y + b.h);
-    if (pC.y < -60 || pA.y > canvas.height + z + 60 || pD.x > canvas.width + 60 || pB.x < -60) return;
+    const sprH = TW * (b.w + b.h) * 1.4; // 贴图可能很高，放宽裁剪上界
+    if (pC.y < -sprH || pA.y > canvas.height + z + 60 || pD.x > canvas.width + 60 || pB.x < -60) return;
     const color = info.color;
 
     if (b.id === 'road') { drawRoadIso(b, pA, pB, pC, pD); return; }
+
+    // —— 优先使用美术贴图 ——
+    if (Assets.has(b.id)) {
+      const im = Assets.img(b.id);
+      if (im) {
+        drawBuildingSprite(b, im, pB, pC, pD, selected);
+        drawNamePlate(b, pA, pC);
+        return;
+      }
+    }
 
     // 地基阴影
     ctx.fillStyle = 'rgba(30,60,20,0.25)';
@@ -351,17 +384,21 @@
     ctx.font = `${size}px serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(info.icon, cx, cy - (flat ? 2 : size * 0.28));
-    // 名字标牌
-    if (TW >= 44) {
-      ctx.font = `800 ${Math.max(10, TW * 0.17)}px "PingFang SC","Microsoft YaHei",sans-serif`;
-      const tw2 = ctx.measureText(b.name).width;
-      const ly = pC.y + TW * 0.06;
-      ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      const r = 5, x0 = cx - tw2 / 2 - 6, y0 = ly - TW * 0.11, w0 = tw2 + 12, h0 = TW * 0.24;
-      ctx.beginPath(); ctx.roundRect(x0, y0, w0, h0, r); ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.fillText(b.name, cx, ly + h0 / 2 - TW * 0.11);
-    }
+    drawNamePlate(b, pA, pC);
+  }
+
+  function drawNamePlate(b, pA, pC) {
+    if (TW < 44) return;
+    const cx = (pA.x + pC.x) / 2;
+    ctx.font = `800 ${Math.max(10, TW * 0.17)}px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tw2 = ctx.measureText(b.name).width;
+    const ly = pC.y + TW * 0.06;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    const r = 5, x0 = cx - tw2 / 2 - 6, y0 = ly - TW * 0.11, w0 = tw2 + 12, h0 = TW * 0.24;
+    ctx.beginPath(); ctx.roundRect(x0, y0, w0, h0, r); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillText(b.name, cx, ly + h0 / 2 - TW * 0.11);
   }
 
   /* ---------- 乐高小人 ---------- */
@@ -377,6 +414,32 @@
     const gy = p.y - bob;         // 脚底
     const legSwing = moving ? Math.sin(w.phase) * H * 0.10 : 0;
     const uw = H * 0.34;          // 身体半宽
+
+    // —— 优先使用角色贴图 ——
+    const spriteId = Assets.charSprite(r);
+    const sprite = spriteId ? Assets.img(spriteId) : null;
+    if (sprite) {
+      const sh = TW * 0.92;                                   // 角色贴图高度
+      const sw = sh * (sprite.naturalWidth / sprite.naturalHeight);
+      const sway = moving ? Math.sin(w.phase) * 0.06 : 0;     // 走路左右小摆
+      ctx.save();
+      // 影子
+      ctx.beginPath(); ctx.ellipse(p.x, p.y + 1, sh * 0.2, sh * 0.07, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fill();
+      ctx.translate(p.x, gy);
+      ctx.rotate(sway);
+      if (w.dir > 0) ctx.scale(-1, 1);                        // 原图朝左下，向右走镜像
+      ctx.drawImage(sprite, -sw / 2, -sh, sw, sh);
+      ctx.restore();
+      // 头顶帽子（装扮）
+      const headY2 = gy - sh * 0.9;
+      if (r.hat) {
+        const hatE = CATALOG.findOutfit(r.hat);
+        if (hatE) { ctx.font = `${H * 0.34}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(hatE.emoji, p.x, headY2 - H * 0.12); }
+      }
+      drawWalkerOverlays(w, r, p, gy, headY2 + H * 0.05, H);
+      return;
+    }
 
     ctx.save();
     // 影子
@@ -435,6 +498,13 @@
       ctx.fillStyle = shade(r.skin, -18); ctx.fill();
     }
 
+    ctx.restore();
+    drawWalkerOverlays(w, r, p, gy, headY - headR, H);
+  }
+
+  /* 小人公共覆盖层：名字 + ❓ + 生活气泡 */
+  function drawWalkerOverlays(w, r, p, gy, headTop, H) {
+    const S = Game.state;
     // 名字
     if (TW >= 44) {
       ctx.font = `800 ${TW * 0.14}px "PingFang SC",sans-serif`;
@@ -449,18 +519,18 @@
     const dq = S.dailyQuestions.find(q => q.residentId === r.id && !q.done);
     if (dq) {
       const qb = Math.sin(time * 4) * 4;
-      const qy = headY - headR * 2.2 + qb;
+      const qy = headTop - H * 0.4 + qb;
       ctx.beginPath(); ctx.arc(p.x, qy, H * 0.19, 0, Math.PI * 2);
       ctx.fillStyle = '#fe8a18'; ctx.fill();
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
       ctx.font = `800 ${H * 0.24}px sans-serif`; ctx.fillStyle = '#fff';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('?', p.x, qy + 1);
-      w._qHit = { x: p.x, y: (qy + headY) / 2, r: H * 0.6 };
+      w._qHit = { x: p.x, y: (qy + headTop) / 2, r: H * 0.6 };
     } else {
       w._qHit = null;
       if (w.bubble) {
-        const by = headY - headR * 2.3;
+        const by = headTop - H * 0.45;
         ctx.beginPath(); ctx.arc(p.x + H * 0.22, by, H * 0.2, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fill();
         ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1; ctx.stroke();
@@ -468,7 +538,6 @@
         ctx.fillText(w.bubble, p.x + H * 0.22, by + 1);
       }
     }
-    ctx.restore();
   }
 
   /* ---------- 行驶车辆 ---------- */
@@ -518,8 +587,20 @@
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.setLineDash([7, 5]); ctx.stroke(); ctx.setLineDash([]);
     ctx.globalAlpha = 1;
     const cx = (pA.x + pC.x) / 2, cy = (pA.y + pC.y) / 2;
-    ctx.font = `${TW * 0.6}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(info ? info.icon : '❓', cx, cy - TW * 0.2);
+    // 幽灵预览：有贴图画半透明贴图，否则画emoji
+    const gid = p.bid || p.moveInfoId;
+    const gim = gid && Assets.has(gid) ? Assets.img(gid) : null;
+    if (gim) {
+      ctx.globalAlpha = 0.75;
+      const footW = pB.x - pD.x;
+      const w = footW * 1.1;
+      const h = w * (gim.naturalHeight / gim.naturalWidth);
+      ctx.drawImage(gim, (pD.x + pB.x) / 2 - w / 2, pC.y + TH() * 0.22 - h, w, h);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.font = `${TW * 0.6}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(info ? info.icon : '❓', cx, cy - TW * 0.2);
+    }
   }
 
   /* ---------- 主绘制循环 ---------- */
@@ -539,7 +620,7 @@
 
     // 深度排序：建筑 + 小人 + 车（按 gx+gy 排）
     const items = [];
-    for (const b of S.buildings) items.push({ d: b.x + b.w + b.y + b.h, f: () => drawBuildingIso(b), sel: b.uid === selectedUid, b });
+    for (const b of S.buildings) items.push({ d: b.x + b.w + b.y + b.h, f: () => drawBuildingIso(b, b.uid === selectedUid), sel: b.uid === selectedUid, b });
     for (const w of walkers) items.push({ d: w.x + w.y + 0.01, f: () => drawWalker(w) });
     for (const c of cars) if (c.onRoad) items.push({ d: c.x + c.y + 0.02, f: () => drawCar(c) });
     items.sort((a, b2) => a.d - b2.d);

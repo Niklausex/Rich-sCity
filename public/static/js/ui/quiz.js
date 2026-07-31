@@ -14,7 +14,7 @@
 
     const header = `
       <div class="quiz-head">
-        ${UI.minifigSVG(r, 0.9)}
+        ${UI.portrait(r, 0.9)}
         <div>
           <div style="font-size:18px;font-weight:800">${r.name} 有问题请教市长！</div>
           <div class="q-sub"><i class="fas ${subIcon}"></i> ${subName} · <span class="tag tag-orange" style="font-size:11px">${typeName}</span> · 连对 <b>${r.streak}</b> <i class="fas fa-fire" style="color:#ffcf6a"></i></div>
