@@ -33,7 +33,7 @@
       lastTaxDay: 0,           // 上次收税的天数
       dailyQuestions: [],      // 今日各居民问题 {residentId, subject, done}
       recentQuestions: [],     // 最近出过的题目(防重复)
-      stats: { totalAnswered: 0, totalRight: 0, taxCollected: 0 },
+      stats: { totalAnswered: 0, totalRight: 0, taxCollected: 0, peakIncome: 0 },
       log: []
     };
   }
@@ -57,7 +57,27 @@
   }
 
   /* 老存档迁移：建筑尺寸调整后自动修正（如 停车场 2x1 → 3x3） */
+  // 旧版本“人口解锁”阀值 → 新版本“周收入解锁”阀值，用于让老存档不丢已解锁内容
+  const POP_TO_INCOME = [[0, 0], [10, 150], [12, 220], [14, 300], [16, 400], [18, 500], [20, 650],
+                        [22, 800], [24, 1000], [30, 1500], [32, 1800], [36, 2400], [40, 3000],
+                        [42, 3500], [45, 4200], [48, 5000], [60, 8000]];
+
   function migrate(s) {
+    // 解锁机制改为周收入：按老存档人口换算出等价的历史最高周收入，已解锁的建筑不会被锁回去
+    if (!s.stats) s.stats = { totalAnswered: 0, totalRight: 0, taxCollected: 0, peakIncome: 0 };
+    if (typeof s.stats.peakIncome !== 'number') {
+      const pop = (s.residents || []).length;
+      let grandfather = 0;
+      for (const [p, inc] of POP_TO_INCOME) if (pop >= p) grandfather = Math.max(grandfather, inc);
+      s.stats.peakIncome = grandfather;
+    }
+    // 招募居民补上美术贴图 key（按名字匹配候选池）
+    for (const r of s.residents) {
+      if (r.sprite === undefined) {
+        const c = CATALOG.NEW_RESIDENT_POOL.find(x => x.name === r.name);
+        r.sprite = c ? (c.sprite || null) : null;
+      }
+    }
     const free = (x, y, w, h, ignoreUid) => {
       if (x < 0 || y < 0 || x + w > s.mapW || y + h > s.mapH) return false;
       return !s.buildings.some(b => b.uid !== ignoreUid &&

@@ -45,10 +45,10 @@ app.get('/', (c) => {
     </div>
     <div class="stats-row">
       <div class="stat" title="城市资金"><i class="fas fa-coins gold"></i><span id="stat-money">100</span></div>
-      <div class="stat" title="人口"><i class="fas fa-users blue"></i><span id="stat-pop">8</span></div>
+      <div class="stat" title="人口（本版本固定8位家人）"><i class="fas fa-users blue"></i><span id="stat-pop">8</span></div>
       <div class="stat" title="幸福度(公共设施带来)"><i class="fas fa-face-smile pink"></i><span id="stat-happy">50</span></div>
       <div class="stat" title="快乐值(居民挣钱越多越快乐)"><i class="fas fa-heart red"></i><span id="stat-joy">50</span></div>
-      <div class="stat" title="居民周收入合计"><i class="fas fa-sack-dollar green"></i><span id="stat-income">0</span>/周</div>
+      <div class="stat" title="城市周收入（建筑解锁看这个）"><i class="fas fa-sack-dollar green"></i><span id="stat-income">0</span>/周</div>
       <div class="stat" title="预期周税收"><i class="fas fa-landmark purple"></i><span id="stat-tax">0</span>/周</div>
     </div>
     <div class="day-box">

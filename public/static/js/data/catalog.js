@@ -4,14 +4,14 @@
  * ============================================================ */
 window.CATALOG = {};
 
-/* ---------- 城市等级 ---------- */
+/* ---------- 城市等级（按每周城市收入，不再看人口） ---------- */
 CATALOG.CITY_RANKS = [
-  { name: '小村庄', minPop: 0, icon: '🏕️' },
-  { name: '小镇', minPop: 12, icon: '🏘️' },
-  { name: '大镇', minPop: 20, icon: '🏙️' },
-  { name: '城市', minPop: 30, icon: '🌆' },
-  { name: '大城市', minPop: 45, icon: '🌃' },
-  { name: '超级城市', minPop: 65, icon: '🌌' }
+  { name: '小村庄', minIncome: 0, icon: '🏕️' },
+  { name: '小镇', minIncome: 250, icon: '🏘️' },
+  { name: '大镇', minIncome: 600, icon: '🏙️' },
+  { name: '城市', minIncome: 1200, icon: '🌆' },
+  { name: '大城市', minIncome: 2500, icon: '🌃' },
+  { name: '超级城市', minIncome: 5000, icon: '🌌' }
 ];
 
 /* ---------- 职业成长线 ---------- */
@@ -43,19 +43,36 @@ CATALOG.INITIAL_RESIDENTS = [
   { id: 'brother', name: '哥哥', emoji: '👦', skin: '#f5c518', shirt: '#3ab54a', pants: '#1a4a8a', hat: null }
 ];
 
+/* ---------- 招募新居民：本版本暂时关闭（固定 8 位家人）----------
+ * 内容全部保留：下面 24 位候选居民、招募面板、美术需求清单都还在。
+ * 想重新开启只需把下面这行改成 true，无需改动其它任何代码。 */
+CATALOG.RECRUIT_ENABLED = false;
+
 CATALOG.NEW_RESIDENT_POOL = [
-  { name: '面包店王叔叔', emoji: '👨‍🍳' }, { name: '医生李阿姨', emoji: '👩‍⚕️' },
-  { name: '警察张叔叔', emoji: '👮' }, { name: '老师刘阿姨', emoji: '👩‍🏫' },
-  { name: '司机赵师傅', emoji: '🧔' }, { name: '画家小周', emoji: '🧑‍🎨' },
-  { name: '工程师陈叔叔', emoji: '👷' }, { name: '飞行员高叔叔', emoji: '🧑‍✈️' },
-  { name: '厨师孙师傅', emoji: '🧑‍🍳' }, { name: '科学家吴博士', emoji: '🧑‍🔬' },
-  { name: '邮递员小马', emoji: '🧑‍💼' }, { name: '园丁老杨', emoji: '🧓' },
-  { name: '消防员郑叔叔', emoji: '🧑‍🚒' }, { name: '兽医小林', emoji: '🧑‍⚕️' },
-  { name: '音乐家安妮', emoji: '👩‍🎤' }, { name: '运动员大力', emoji: '🏃' },
-  { name: '甜品师小柔', emoji: '🧁' }, { name: '摄影师阿凯', emoji: '📷' },
-  { name: '宇航员天翼', emoji: '🧑‍🚀' }, { name: '船长老海', emoji: '⚓' },
-  { name: '魔术师奇奇', emoji: '🎩' }, { name: '农场主福伯', emoji: '🌾' },
-  { name: '程序员小极', emoji: '💻' }, { name: '篮球教练强哥', emoji: '🏀' }
+  { name: '面包店王叔叔', emoji: '👨‍🍳', sprite: 'baker_wang' },
+  { name: '医生李阿姨', emoji: '👩‍⚕️', sprite: 'doctor_li' },
+  { name: '警察张叔叔', emoji: '👮', sprite: 'police_zhang' },
+  { name: '老师刘阿姨', emoji: '👩‍🏫', sprite: 'teacher_liu' },
+  { name: '司机赵师傅', emoji: '🧔', sprite: 'driver_zhao' },
+  { name: '画家小周', emoji: '🧑‍🎨', sprite: 'painter_zhou' },
+  { name: '工程师陈叔叔', emoji: '👷', sprite: 'engineer_chen' },
+  { name: '飞行员高叔叔', emoji: '🧑‍✈️', sprite: 'pilot_gao' },
+  { name: '厨师孙师傅', emoji: '🧑‍🍳', sprite: 'chef_sun' },
+  { name: '科学家吴博士', emoji: '🧑‍🔬', sprite: 'scientist_wu' },
+  { name: '邮递员小马', emoji: '🧑‍💼', sprite: 'postman_ma' },
+  { name: '园丁老杨', emoji: '🧓', sprite: 'gardener_yang' },
+  { name: '消防员郑叔叔', emoji: '🧑‍🚒', sprite: 'firefighter_zheng' },
+  { name: '兽医小林', emoji: '🧑‍⚕️', sprite: 'vet_lin' },
+  { name: '音乐家安妮', emoji: '👩‍🎤', sprite: 'singer_annie' },
+  { name: '运动员大力', emoji: '🏃', sprite: 'athlete_dali' },
+  { name: '甜品师小柔', emoji: '🧁', sprite: 'pastry_xiaorou' },
+  { name: '摄影师阿凯', emoji: '📷', sprite: 'photographer_akai' },
+  { name: '宇航员天翼', emoji: '🧑‍🚀', sprite: 'astronaut_tianyi' },
+  { name: '船长老海', emoji: '⚓', sprite: 'captain_laohai' },
+  { name: '魔术师奇奇', emoji: '🎩', sprite: 'magician_qiqi' },
+  { name: '农场主福伯', emoji: '🌾', sprite: 'farmer_fubo' },
+  { name: '程序员小极', emoji: '💻', sprite: 'coder_xiaoji' },
+  { name: '篮球教练强哥', emoji: '🏀', sprite: 'coach_qiangge' }
 ];
 CATALOG.residentCost = (pop) => 80 + Math.max(0, pop - 8) * 40;
 
@@ -80,54 +97,69 @@ CATALOG.OUTFITS = [
 /* ---------- 建筑目录（40+种） ---------- */
 CATALOG.BUILDINGS = [
   // —— 住宅 ——
-  { id: 'house_wood', cat: 'house', name: '木屋', icon: '🛖', cost: 60, popCap: 2, w: 2, h: 2, fl: 1, color: '#a8763a', desc: '温馨小木屋，可住2人', unlockPop: 0 },
-  { id: 'house_brick', cat: 'house', name: '砖房', icon: '🏠', cost: 150, popCap: 4, w: 2, h: 2, fl: 1.6, color: '#c25a3a', desc: '结实砖房，可住4人', unlockPop: 10 },
-  { id: 'house_villa', cat: 'house', name: '小别墅', icon: '🏡', cost: 400, popCap: 6, w: 3, h: 2, fl: 2, color: '#5c8a4a', desc: '带花园的漂亮别墅，可住6人', unlockPop: 16 },
-  { id: 'apartment', cat: 'house', name: '公寓楼', icon: '🏢', cost: 900, popCap: 12, w: 2, h: 3, fl: 4, color: '#4a7a9a', desc: '高层公寓，可住12人', unlockPop: 24 },
-  { id: 'mansion', cat: 'house', name: '豪华庄园', icon: '🏰', cost: 1800, popCap: 8, w: 3, h: 3, fl: 2.6, color: '#8a6aa0', desc: '气派的大庄园，可住8人', unlockPop: 30 },
-  { id: 'skyhome', cat: 'house', name: '摩天住宅', icon: '🌇', cost: 3200, popCap: 20, w: 3, h: 3, fl: 7, color: '#5a8ab5', desc: '入云的摩天大楼，可住20人', unlockPop: 45 },
+  { id: 'house_wood', cat: 'house', name: '木屋', icon: '🛖', cost: 60, popCap: 2, income: 15, w: 2, h: 2, fl: 1, color: '#a8763a', desc: '温馨小木屋，房租15元/周（可住2人）', unlockIncome: 0 },
+  { id: 'house_brick', cat: 'house', name: '砖房', icon: '🏠', cost: 150, popCap: 4, income: 35, w: 2, h: 2, fl: 1.6, color: '#c25a3a', desc: '结实砖房，房租35元/周（可住4人）', unlockIncome: 150 },
+  { id: 'house_villa', cat: 'house', name: '小别墅', icon: '🏡', cost: 400, popCap: 6, income: 90, happy: 3, w: 3, h: 2, fl: 2, color: '#5c8a4a', desc: '带花园的别墅，房租90元/周，幸福度+3', unlockIncome: 400 },
+  { id: 'apartment', cat: 'house', name: '公寓楼', icon: '🏢', cost: 900, popCap: 12, income: 200, w: 2, h: 3, fl: 4, color: '#4a7a9a', desc: '高层公寓，房租200元/周（可住12人）', unlockIncome: 1000 },
+  { id: 'mansion', cat: 'house', name: '豪华庄园', icon: '🏰', cost: 1800, popCap: 8, income: 380, happy: 5, w: 3, h: 3, fl: 2.6, color: '#8a6aa0', desc: '气派的大庄园，房租380元/周，幸福度+5', unlockIncome: 1500 },
+  { id: 'skyhome', cat: 'house', name: '摩天住宅', icon: '🌇', cost: 3200, popCap: 20, income: 680, w: 3, h: 3, fl: 7, color: '#5a8ab5', desc: '入云的摩天大楼，房租680元/周（可住20人）', unlockIncome: 4200 },
   // —— 商业 ——
-  { id: 'store', cat: 'business', name: '便利店', icon: '🏪', cost: 100, income: 40, w: 2, h: 2, fl: 1, color: '#3ab54a', desc: '24小时便利店，营业额40元/周', unlockPop: 0 },
-  { id: 'bakery', cat: 'business', name: '面包店', icon: '🥐', cost: 180, income: 70, w: 2, h: 2, fl: 1, color: '#e0a04a', desc: '香喷喷的面包店，营业额70元/周', unlockPop: 0 },
-  { id: 'coffee', cat: 'business', name: '咖啡店', icon: '☕', cost: 150, income: 55, w: 2, h: 1, fl: 1, color: '#8a5a3a', desc: '飘着咖啡香，营业额55元/周', unlockPop: 0 },
-  { id: 'toy_store', cat: 'business', name: '玩具店', icon: '🧸', cost: 260, income: 95, w: 2, h: 2, fl: 1.4, color: '#e06a9a', desc: '小朋友最爱！营业额95元/周', unlockPop: 10 },
-  { id: 'restaurant', cat: 'business', name: '餐厅', icon: '🍽️', cost: 320, income: 120, w: 2, h: 2, fl: 1.4, color: '#d05a4a', desc: '生意红火的餐厅，营业额120元/周', unlockPop: 12 },
-  { id: 'pizza', cat: 'business', name: '披萨店', icon: '🍕', cost: 350, income: 130, w: 2, h: 2, fl: 1.2, color: '#e07a2a', desc: '香喷喷的披萨，营业额130元/周', unlockPop: 12 },
-  { id: 'supermarket', cat: 'business', name: '大超市', icon: '🛒', cost: 450, income: 165, w: 3, h: 2, fl: 1.4, color: '#2a9a6a', desc: '什么都能买到，营业额165元/周', unlockPop: 14 },
-  { id: 'cinema', cat: 'business', name: '电影院', icon: '🎬', cost: 600, income: 200, w: 3, h: 2, fl: 2.2, color: '#5a4a8a', desc: '放最新动画电影，营业额200元/周', unlockPop: 16 },
-  { id: 'arcade', cat: 'business', name: '电玩城', icon: '🕹️', cost: 750, income: 250, w: 2, h: 2, fl: 2, color: '#7a3ab0', desc: '好玩的游戏机，营业额250元/周', unlockPop: 18 },
-  { id: 'bank', cat: 'business', name: '银行', icon: '🏦', cost: 1200, income: 380, w: 2, h: 2, fl: 3, color: '#9a8a4a', desc: '存钱的地方，营业额380元/周', unlockPop: 22 },
-  { id: 'mall', cat: 'business', name: '购物中心', icon: '🛍️', cost: 1500, income: 450, w: 3, h: 3, fl: 3, color: '#c04a8a', desc: '超大购物中心，营业额450元/周', unlockPop: 24 },
-  { id: 'hotel', cat: 'business', name: '大酒店', icon: '🏨', cost: 2600, income: 700, w: 3, h: 3, fl: 5.5, color: '#8a6a2a', desc: '五星级大酒店，营业额700元/周', unlockPop: 36 },
-  { id: 'zoo', cat: 'business', name: '动物园', icon: '🦁', cost: 2200, income: 600, w: 4, h: 3, fl: 0.2, color: '#6a9a4a', desc: '狮子老虎大熊猫！营业额600元/周', unlockPop: 32 },
-  { id: 'amusement', cat: 'business', name: '游乐园', icon: '🎡', cost: 5000, income: 1200, w: 4, h: 3, fl: 2.4, color: '#e46aaa', desc: '超好玩的游乐园，营业额1200元/周', unlockPop: 48 },
-  { id: 'aquarium', cat: 'business', name: '海洋馆', icon: '🐋', cost: 4200, income: 950, w: 4, h: 3, fl: 2, color: '#2a7ab5', desc: '看鲸鱼和海豚，营业额950元/周', unlockPop: 42 },
+  { id: 'store', cat: 'business', name: '便利店', icon: '🏪', cost: 100, income: 40, w: 2, h: 2, fl: 1, color: '#3ab54a', desc: '24小时便利店，营业额40元/周', unlockIncome: 0 },
+  { id: 'bakery', cat: 'business', name: '面包店', icon: '🥐', cost: 180, income: 70, w: 2, h: 2, fl: 1, color: '#e0a04a', desc: '香喷喷的面包店，营业额70元/周', unlockIncome: 0 },
+  { id: 'coffee', cat: 'business', name: '咖啡店', icon: '☕', cost: 150, income: 55, w: 2, h: 1, fl: 1, color: '#8a5a3a', desc: '飘着咖啡香，营业额55元/周', unlockIncome: 0 },
+  { id: 'toy_store', cat: 'business', name: '玩具店', icon: '🧸', cost: 260, income: 95, w: 2, h: 2, fl: 1.4, color: '#e06a9a', desc: '小朋友最爱！营业额95元/周', unlockIncome: 150 },
+  { id: 'restaurant', cat: 'business', name: '餐厅', icon: '🍽️', cost: 320, income: 120, w: 2, h: 2, fl: 1.4, color: '#d05a4a', desc: '生意红火的餐厅，营业额120元/周', unlockIncome: 220 },
+  { id: 'pizza', cat: 'business', name: '披萨店', icon: '🍕', cost: 350, income: 130, w: 2, h: 2, fl: 1.2, color: '#e07a2a', desc: '香喷喷的披萨，营业额130元/周', unlockIncome: 220 },
+  { id: 'supermarket', cat: 'business', name: '大超市', icon: '🛒', cost: 450, income: 165, w: 3, h: 2, fl: 1.4, color: '#2a9a6a', desc: '什么都能买到，营业额165元/周', unlockIncome: 300 },
+  { id: 'cinema', cat: 'business', name: '电影院', icon: '🎬', cost: 600, income: 200, w: 3, h: 2, fl: 2.2, color: '#5a4a8a', desc: '放最新动画电影，营业额200元/周', unlockIncome: 400 },
+  { id: 'arcade', cat: 'business', name: '电玩城', icon: '🕹️', cost: 750, income: 250, w: 2, h: 2, fl: 2, color: '#7a3ab0', desc: '好玩的游戏机，营业额250元/周', unlockIncome: 500 },
+  { id: 'bank', cat: 'business', name: '银行', icon: '🏦', cost: 1200, income: 380, w: 2, h: 2, fl: 3, color: '#9a8a4a', desc: '存钱的地方，营业额380元/周', unlockIncome: 800 },
+  { id: 'mall', cat: 'business', name: '购物中心', icon: '🛍️', cost: 1500, income: 450, w: 3, h: 3, fl: 3, color: '#c04a8a', desc: '超大购物中心，营业额450元/周', unlockIncome: 1000 },
+  { id: 'hotel', cat: 'business', name: '大酒店', icon: '🏨', cost: 2600, income: 700, w: 3, h: 3, fl: 5.5, color: '#8a6a2a', desc: '五星级大酒店，营业额700元/周', unlockIncome: 2400 },
+  { id: 'zoo', cat: 'business', name: '动物园', icon: '🦁', cost: 2200, income: 600, w: 4, h: 3, fl: 0.2, color: '#6a9a4a', desc: '狮子老虎大熊猫！营业额600元/周', unlockIncome: 1800 },
+  { id: 'amusement', cat: 'business', name: '游乐园', icon: '🎡', cost: 5000, income: 1200, w: 4, h: 3, fl: 2.4, color: '#e46aaa', desc: '超好玩的游乐园，营业额1200元/周', unlockIncome: 5000 },
+  { id: 'aquarium', cat: 'business', name: '海洋馆', icon: '🐋', cost: 4200, income: 950, w: 4, h: 3, fl: 2, color: '#2a7ab5', desc: '看鲸鱼和海豚，营业额950元/周', unlockIncome: 3500 },
   // —— 公共 ——
-  { id: 'road', cat: 'public', name: '道路', icon: '🛣️', cost: 5, happy: 0, w: 1, h: 1, fl: 0, color: '#5c5c5c', desc: '连接城市的道路，居民和汽车都爱走', unlockPop: 0 },
-  { id: 'park', cat: 'public', name: '小公园', icon: '🌳', cost: 80, happy: 5, w: 2, h: 2, fl: 0.2, color: '#4a9a4a', desc: '绿树成荫，幸福度+5', unlockPop: 0 },
-  { id: 'flower', cat: 'public', name: '花园', icon: '🌷', cost: 100, happy: 5, w: 1, h: 1, fl: 0.2, color: '#c05a8a', desc: '五彩的花朵，幸福度+5', unlockPop: 0 },
-  { id: 'fountain', cat: 'public', name: '喷泉广场', icon: '⛲', cost: 160, happy: 7, w: 2, h: 2, fl: 0.3, color: '#5a9ab5', desc: '哗啦啦的喷泉，幸福度+7', unlockPop: 0 },
-  { id: 'playground', cat: 'public', name: '游乐场', icon: '🛝', cost: 150, happy: 8, w: 2, h: 2, fl: 0.3, color: '#e08a3a', desc: '孩子们的最爱，幸福度+8', unlockPop: 0 },
-  { id: 'kindergarten', cat: 'public', name: '幼儿园', icon: '🧸', cost: 250, happy: 8, w: 2, h: 2, fl: 1.2, color: '#e0a05a', desc: '小小朋友的乐园，幸福度+8', unlockPop: 10 },
-  { id: 'school', cat: 'public', name: '学校', icon: '🏫', cost: 350, happy: 12, w: 3, h: 2, fl: 2, color: '#c2803a', desc: '知识的殿堂，幸福度+12', unlockPop: 12 },
-  { id: 'post_office', cat: 'public', name: '邮局', icon: '📮', cost: 300, happy: 7, w: 2, h: 2, fl: 1.4, color: '#3a8a5a', desc: '寄信送包裹，幸福度+7', unlockPop: 14 },
-  { id: 'hospital', cat: 'public', name: '医院', icon: '🏥', cost: 500, happy: 15, w: 3, h: 2, fl: 3, color: '#e05a5a', desc: '守护健康，幸福度+15', unlockPop: 16 },
-  { id: 'library', cat: 'public', name: '图书馆', icon: '📚', cost: 420, happy: 10, w: 2, h: 2, fl: 2, color: '#7a5aa0', desc: '书的海洋，幸福度+10', unlockPop: 16 },
-  { id: 'fire_station', cat: 'public', name: '消防局', icon: '🚒', cost: 450, happy: 10, w: 2, h: 2, fl: 1.8, color: '#d02a2a', desc: '城市安全卫士，幸福度+10', unlockPop: 20 },
-  { id: 'police', cat: 'public', name: '警察局', icon: '🚓', cost: 450, happy: 10, w: 2, h: 2, fl: 1.8, color: '#2a4a9a', desc: '维护治安，幸福度+10', unlockPop: 20 },
-  { id: 'museum', cat: 'public', name: '博物馆', icon: '🏛️', cost: 1500, happy: 20, w: 3, h: 2, fl: 2.4, color: '#9a8a5a', desc: '收藏历史珍宝，幸福度+20', unlockPop: 30 },
-  { id: 'stadium', cat: 'public', name: '体育场', icon: '🏟️', cost: 1800, happy: 25, w: 4, h: 3, fl: 2, color: '#3a8a6a', desc: '举办比赛，幸福度+25', unlockPop: 30 },
-  { id: 'tv_tower', cat: 'public', name: '电视塔', icon: '🗼', cost: 2800, happy: 28, w: 2, h: 2, fl: 9, color: '#c04a4a', desc: '城市地标！幸福度+28', unlockPop: 40 },
+  { id: 'road', cat: 'public', name: '道路', icon: '🛣️', cost: 5, happy: 0, w: 1, h: 1, fl: 0, color: '#5c5c5c', desc: '连接城市的道路，居民和汽车都爱走', unlockIncome: 0 },
+  { id: 'park', cat: 'public', name: '小公园', icon: '🌳', cost: 80, happy: 5, w: 2, h: 2, fl: 0.2, color: '#4a9a4a', desc: '绿树成荫，幸福度+5', unlockIncome: 0 },
+  { id: 'flower', cat: 'public', name: '花园', icon: '🌷', cost: 100, happy: 5, w: 1, h: 1, fl: 0.2, color: '#c05a8a', desc: '五彩的花朵，幸福度+5', unlockIncome: 0 },
+  { id: 'fountain', cat: 'public', name: '喷泉广场', icon: '⛲', cost: 160, happy: 7, w: 2, h: 2, fl: 0.3, color: '#5a9ab5', desc: '哗啦啦的喷泉，幸福度+7', unlockIncome: 0 },
+  { id: 'playground', cat: 'public', name: '游乐场', icon: '🛝', cost: 150, happy: 8, w: 2, h: 2, fl: 0.3, color: '#e08a3a', desc: '孩子们的最爱，幸福度+8', unlockIncome: 0 },
+  { id: 'kindergarten', cat: 'public', name: '幼儿园', icon: '🧸', cost: 250, happy: 8, w: 2, h: 2, fl: 1.2, color: '#e0a05a', desc: '小小朋友的乐园，幸福度+8', unlockIncome: 150 },
+  { id: 'school', cat: 'public', name: '学校', icon: '🏫', cost: 350, happy: 12, w: 3, h: 2, fl: 2, color: '#c2803a', desc: '知识的殿堂，幸福度+12', unlockIncome: 220 },
+  { id: 'post_office', cat: 'public', name: '邮局', icon: '📮', cost: 300, happy: 7, w: 2, h: 2, fl: 1.4, color: '#3a8a5a', desc: '寄信送包裹，幸福度+7', unlockIncome: 300 },
+  { id: 'hospital', cat: 'public', name: '医院', icon: '🏥', cost: 500, happy: 15, w: 3, h: 2, fl: 3, color: '#e05a5a', desc: '守护健康，幸福度+15', unlockIncome: 400 },
+  { id: 'library', cat: 'public', name: '图书馆', icon: '📚', cost: 420, happy: 10, w: 2, h: 2, fl: 2, color: '#7a5aa0', desc: '书的海洋，幸福度+10', unlockIncome: 400 },
+  { id: 'fire_station', cat: 'public', name: '消防局', icon: '🚒', cost: 450, happy: 10, w: 2, h: 2, fl: 1.8, color: '#d02a2a', desc: '城市安全卫士，幸福度+10', unlockIncome: 650 },
+  { id: 'police', cat: 'public', name: '警察局', icon: '🚓', cost: 450, happy: 10, w: 2, h: 2, fl: 1.8, color: '#2a4a9a', desc: '维护治安，幸福度+10', unlockIncome: 650 },
+  { id: 'museum', cat: 'public', name: '博物馆', icon: '🏛️', cost: 1500, happy: 20, w: 3, h: 2, fl: 2.4, color: '#9a8a5a', desc: '收藏历史珍宝，幸福度+20', unlockIncome: 1500 },
+  { id: 'stadium', cat: 'public', name: '体育场', icon: '🏟️', cost: 1800, happy: 25, w: 4, h: 3, fl: 2, color: '#3a8a6a', desc: '举办比赛，幸福度+25', unlockIncome: 1500 },
+  { id: 'tv_tower', cat: 'public', name: '电视塔', icon: '🗼', cost: 2800, happy: 28, w: 2, h: 2, fl: 9, color: '#c04a4a', desc: '城市地标！幸福度+28', unlockIncome: 3000 },
   // —— 配套 ——
-  { id: 'parking', cat: 'support', name: '停车场', icon: '🅿️', cost: 60, happy: 2, w: 3, h: 3, fl: 0, color: '#5a6a7a', desc: '停放城市车辆，幸福度+2', unlockPop: 0 },
-  { id: 'bus_stop', cat: 'support', name: '公交站', icon: '🚏', cost: 90, happy: 4, w: 1, h: 1, fl: 0.6, color: '#3a7ab0', desc: '方便出行，幸福度+4', unlockPop: 10 },
-  { id: 'gas', cat: 'support', name: '加油站', icon: '⛽', cost: 200, happy: 3, income: 50, w: 2, h: 2, fl: 0.8, color: '#c05a2a', desc: '给汽车加油，营业额50元/周', unlockPop: 12 },
-  { id: 'solar', cat: 'support', name: '太阳能电站', icon: '🔆', cost: 300, happy: 4, w: 2, h: 1, fl: 0.3, color: '#2a5a8a', desc: '清洁能源，幸福度+4', unlockPop: 14 },
-  { id: 'wind_turbine', cat: 'support', name: '风力发电机', icon: '🌀', cost: 350, happy: 5, w: 1, h: 1, fl: 4, color: '#e8e8e8', desc: '大风车转呀转，幸福度+5', unlockPop: 14 },
-  { id: 'train_station', cat: 'support', name: '火车站', icon: '🚉', cost: 1200, happy: 15, w: 4, h: 2, fl: 1.8, color: '#6a5a4a', desc: '火车开进城！幸福度+15，解锁火车', unlockPop: 24 },
-  { id: 'harbor', cat: 'support', name: '港口', icon: '⚓', cost: 3000, happy: 20, w: 4, h: 2, fl: 1, color: '#2a5a7a', desc: '轮船码头，幸福度+20，解锁轮船', unlockPop: 36 },
-  { id: 'airport', cat: 'support', name: '飞机场', icon: '🛫', cost: 4000, happy: 30, w: 5, h: 3, fl: 1.4, color: '#4a6a8a', desc: '飞向蓝天！幸福度+30，解锁飞机', unlockPop: 40 },
-  { id: 'rocket_pad', cat: 'support', name: '火箭发射台', icon: '🚀', cost: 8000, happy: 40, w: 3, h: 3, fl: 6, color: '#7a4a2a', desc: '飞向太空！幸福度+40，解锁火箭', unlockPop: 60 }
+  { id: 'parking', cat: 'support', name: '停车场', icon: '🅿️', cost: 60, happy: 2, w: 3, h: 3, fl: 0, color: '#5a6a7a', desc: '停放城市车辆，幸福度+2', unlockIncome: 0 },
+  { id: 'bus_stop', cat: 'support', name: '公交站', icon: '🚏', cost: 90, happy: 4, w: 1, h: 1, fl: 0.6, color: '#3a7ab0', desc: '方便出行，幸福度+4', unlockIncome: 150 },
+  { id: 'gas', cat: 'support', name: '加油站', icon: '⛽', cost: 200, happy: 3, income: 50, w: 2, h: 2, fl: 0.8, color: '#c05a2a', desc: '给汽车加油，营业额50元/周', unlockIncome: 220 },
+  { id: 'solar', cat: 'support', name: '太阳能电站', icon: '🔆', cost: 300, happy: 4, w: 2, h: 1, fl: 0.3, color: '#2a5a8a', desc: '清洁能源，幸福度+4', unlockIncome: 300 },
+  { id: 'wind_turbine', cat: 'support', name: '风力发电机', icon: '🌀', cost: 350, happy: 5, w: 1, h: 1, fl: 4, color: '#e8e8e8', desc: '大风车转呀转，幸福度+5', unlockIncome: 300 },
+  { id: 'train_station', cat: 'support', name: '火车站', icon: '🚉', cost: 1200, happy: 15, w: 4, h: 2, fl: 1.8, color: '#6a5a4a', desc: '火车开进城！幸福度+15，解锁火车', unlockIncome: 1000 },
+  { id: 'harbor', cat: 'support', name: '港口', icon: '⚓', cost: 3000, happy: 20, w: 4, h: 2, fl: 1, color: '#2a5a7a', desc: '轮船码头，幸福度+20，解锁轮船', unlockIncome: 2400 },
+  { id: 'airport', cat: 'support', name: '飞机场', icon: '🛫', cost: 4000, happy: 30, w: 5, h: 3, fl: 1.4, color: '#4a6a8a', desc: '飞向蓝天！幸福度+30，解锁飞机', unlockIncome: 3000 },
+  { id: 'rocket_pad', cat: 'support', name: '火箭发射台', icon: '🚀', cost: 8000, happy: 40, w: 3, h: 3, fl: 6, color: '#7a4a2a', desc: '飞向太空！幸福度+40，解锁火箭', unlockIncome: 8000 },
+  // —— 装饰小物（1×1，便宜，随手点缀城市；有美术贴图时自动换成贴图）——
+  { id: 'deco_tree_big', cat: 'deco', name: '大树', icon: '🌳', cost: 12, happy: 1, w: 1, h: 1, fl: 0.3, color: '#3f8f3f', desc: '圆滚滚的大树，幸福度+1', unlockIncome: 0 },
+  { id: 'deco_tree_pine', cat: 'deco', name: '松树', icon: '🌲', cost: 12, happy: 1, w: 1, h: 1, fl: 0.3, color: '#2f7a4f', desc: '尖尖的松树，幸福度+1', unlockIncome: 0 },
+  { id: 'deco_bush', cat: 'deco', name: '灌木丛', icon: '🌿', cost: 8, happy: 1, w: 1, h: 1, fl: 0.25, color: '#5aa54a', desc: '带小花的灌木，幸福度+1', unlockIncome: 0 },
+  { id: 'deco_flowerbed', cat: 'deco', name: '花坛', icon: '💐', cost: 15, happy: 2, w: 1, h: 1, fl: 0.25, color: '#c05a8a', desc: '五彩花坛，幸福度+2', unlockIncome: 0 },
+  { id: 'deco_rock', cat: 'deco', name: '石头堆', icon: '🪨', cost: 8, happy: 1, w: 1, h: 1, fl: 0.25, color: '#8a8a8a', desc: '灰色圆石堆，幸福度+1', unlockIncome: 0 },
+  { id: 'deco_streetlight', cat: 'deco', name: '路灯', icon: '🏮', cost: 20, happy: 2, w: 1, h: 1, fl: 0.3, color: '#6a6a7a', desc: '暖黄路灯，幸福度+2', unlockIncome: 0 },
+  { id: 'deco_bench', cat: 'deco', name: '长椅', icon: '🪑', cost: 15, happy: 2, w: 1, h: 1, fl: 0.25, color: '#a8763a', desc: '休息长椅，幸福度+2', unlockIncome: 0 },
+  { id: 'deco_trashbin', cat: 'deco', name: '垃圾桶', icon: '🗑️', cost: 10, happy: 1, w: 1, h: 1, fl: 0.25, color: '#3a7a4a', desc: '保持整洁，幸福度+1', unlockIncome: 0 },
+  { id: 'deco_hydrant', cat: 'deco', name: '消防栓', icon: '🧯', cost: 12, happy: 1, w: 1, h: 1, fl: 0.25, color: '#d02a2a', desc: '红色消防栓，幸福度+1', unlockIncome: 0 },
+  { id: 'deco_fence', cat: 'deco', name: '白围栏', icon: '🚧', cost: 8, happy: 1, w: 1, h: 1, fl: 0.25, color: '#e8e8e8', desc: '一段白栅栏，幸福度+1', unlockIncome: 0 },
+  { id: 'deco_pond', cat: 'deco', name: '小水池', icon: '💧', cost: 25, happy: 3, w: 1, h: 1, fl: 0.2, color: '#5a9ab5', desc: '圆形小水池，幸福度+3', unlockIncome: 0 },
+  { id: 'deco_bridge', cat: 'deco', name: '小木桥', icon: '🌉', cost: 25, happy: 2, w: 1, h: 1, fl: 0.25, color: '#b0844a', desc: '一格小木桥，幸福度+2', unlockIncome: 150 },
+  { id: 'deco_billboard', cat: 'deco', name: '广告牌', icon: '📋', cost: 30, happy: 2, w: 1, h: 1, fl: 0.4, color: '#d0d0d0', desc: '可以改名字的广告牌，幸福度+2', unlockIncome: 150 },
+  { id: 'deco_traffic_light', cat: 'deco', name: '红绿灯', icon: '🚦', cost: 20, happy: 2, w: 1, h: 1, fl: 0.35, color: '#4a4a5a', desc: '路口红绿灯，幸福度+2', unlockIncome: 150 },
 ];
 
 /* ---------- 车辆/载具收藏（35款，参考真实车型/机型） ---------- */

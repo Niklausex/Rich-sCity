@@ -42,12 +42,41 @@
       }, 0);
     },
 
+    // 产业基础周收入（商铺营业额 + 住宅房祟，不含幸福度浮动）
+    baseBusinessIncome() {
+      let rev = 0;
+      for (const b of S.buildings) { const info = this.bInfo(b.id); if (info && info.income) rev += info.income; }
+      return rev;
+    },
+
     // 商业周营业额（受幸福度影响：幸福度越高消费越多，0.5x ~ 1.5x）
     weeklyBusinessRevenue() {
       const factor = 0.5 + this.happiness() / 100;
-      let rev = 0;
-      for (const b of S.buildings) { const info = this.bInfo(b.id); if (info && info.income) rev += info.income; }
-      return Math.round(rev * factor);
+      return Math.round(this.baseBusinessIncome() * factor);
+    },
+
+    /* 城市周收入（解锁、城市等级的唯一指标）
+     * = 居民工资合计 + 产业基础收入（不受幸福度浮动影响，数字稳定好理解） */
+    weeklyIncome() { return this.weeklyResidentIncome() + this.baseBusinessIncome(); },
+
+    // 历史最高周收入：解锁看这个，拆房子也不会把已解锁的建筑锁回去
+    peakIncome() {
+      const now = this.weeklyIncome();
+      if (!S.stats.peakIncome || S.stats.peakIncome < now) S.stats.peakIncome = now;
+      return S.stats.peakIncome;
+    },
+
+    // 某建筑是否已解锁
+    isUnlocked(info) { return !info || !info.unlockIncome || this.peakIncome() >= info.unlockIncome; },
+
+    // 下一个将解锁的建筑（给 UI 做目标提示）
+    nextUnlock() {
+      const peak = this.peakIncome();
+      let best = null;
+      for (const b of CATALOG.BUILDINGS) {
+        if (b.unlockIncome > peak && (!best || b.unlockIncome < best.unlockIncome)) best = b;
+      }
+      return best;
     },
 
     // 预期周税收 = 居民收入10% + 商业营业额10%
@@ -56,9 +85,9 @@
     },
 
     cityRank() {
-      const pop = S.residents.length;
+      const inc = this.peakIncome();
       let rank = CATALOG.CITY_RANKS[0];
-      for (const r of CATALOG.CITY_RANKS) if (pop >= r.minPop) rank = r;
+      for (const r of CATALOG.CITY_RANKS) if (inc >= r.minIncome) rank = r;
       return rank;
     },
 
@@ -170,6 +199,7 @@
     buyAndPlace(bid, x, y, rotated) {
       const info = CATALOG.findBuilding(bid);
       if (!info) return { ok: false, msg: '未知建筑' };
+      if (!this.isUnlocked(info)) return { ok: false, msg: `周收入达到 ${info.unlockIncome} 元/周才能解锁「${info.name}」` };
       if (S.money < info.cost) return { ok: false, msg: '资金不够，快去答题、收税赚钱吧！' };
       const w = rotated ? info.h : info.w, h = rotated ? info.w : info.h;
       if (!this.isAreaFree(x, y, w, h)) return { ok: false, msg: '这里放不下，换个位置试试' };
@@ -210,8 +240,11 @@
       return refund;
     },
 
-    /* ---------- 招募新居民 ---------- */
+    /* ---------- 招募新居民（由 CATALOG.RECRUIT_ENABLED 控制，本版本暂关）---------- */
+    recruitEnabled() { return !!CATALOG.RECRUIT_ENABLED; },
+
     recruitResident() {
+      if (!this.recruitEnabled()) return { ok: false, msg: '本版本暂不开放招募新居民（后续版本开启）' };
       const cost = CATALOG.residentCost(S.residents.length);
       if (S.money < cost) return { ok: false, msg: `招募需要${cost}元，资金不够` };
       if (S.residents.length >= this.popCap()) return { ok: false, msg: '住房不够啦！先建造住宅（木屋/砖房等）' };
@@ -222,7 +255,7 @@
       S.money -= cost;
       const colors = CATALOG.FREE_COLORS;
       S.residents.push({
-        id: 'r' + Date.now(), name: c.name, emoji: c.emoji,
+        id: 'r' + Date.now(), name: c.name, emoji: c.emoji, sprite: c.sprite || null,
         skin: '#f5c518', shirt: colors[Math.floor(Math.random() * colors.length)],
         pants: colors[Math.floor(Math.random() * colors.length)], hat: null,
         level: 1, xp: 0, streak: 0, bestStreak: 0, totalRight: 0, totalWrong: 0, claimedGifts: []

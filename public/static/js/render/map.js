@@ -51,34 +51,73 @@
   const walkers = [];  // {rid, x, y, tx, ty, speed, phase, pauseT, bubble, bubbleT, dir}
   const BUBBLES = ['🍞', '☕', '🎵', '💬', '🌸', '⚽', '📖', '🍦', '🛒', '🎈'];
 
+  /* 某格被哪座建筑占用（无则 null） */
+  function buildingAt(gx, gy) {
+    const S = Game.state;
+    for (const b of S.buildings) {
+      if (gx >= b.x && gx < b.x + b.w && gy >= b.y && gy < b.y + b.h) return b;
+    }
+    return null;
+  }
+
+  /* 可通行：草地 + 道路。所有建筑（含公园/停车场等平铺地块）都不可进入，
+     避免小人被贴图遮住、看起来"走进建筑里面/底部" */
   function isWalkable(gx, gy) {
     const S = Game.state;
     if (gx < 0 || gy < 0 || gx >= S.mapW || gy >= S.mapH) return false;
-    for (const b of S.buildings) {
-      if (gx >= b.x && gx < b.x + b.w && gy >= b.y && gy < b.y + b.h) {
-        const info = Game.bInfo(b.id);
-        return info && (info.fl || 0) <= 0.35; // 道路/公园/停车场等平地可走
-      }
-    }
-    return true;
+    const b = buildingAt(gx, gy);
+    return !b || b.id === 'road';
   }
 
   function isRoad(gx, gy) {
     return Game.state.buildings.some(b => b.id === 'road' && gx >= b.x && gx < b.x + b.w && gy >= b.y && gy < b.y + b.h);
   }
 
+  /* 以 (gx,gy) 为起点螺旋查找最近的可通行格（用于出生/被建筑压住时脱困） */
+  function nearestWalkable(gx, gy) {
+    const S = Game.state;
+    const maxR = Math.max(S.mapW, S.mapH);
+    for (let rad = 0; rad <= maxR; rad++) {
+      for (let dy = -rad; dy <= rad; dy++) {
+        for (let dx = -rad; dx <= rad; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== rad) continue;
+          const x = gx + dx, y = gy + dy;
+          if (isWalkable(x, y)) return { gx: x, gy: y };
+        }
+      }
+    }
+    return { gx: 0, gy: 0 };
+  }
+
   function syncWalkers() {
     const S = Game.state;
     for (const r of S.residents) {
       if (!walkers.find(w => w.rid === r.id)) {
-        // 出生在办公室附近可走的格子
+        // 出生在办公室门口最近的可走格子
         const office = S.buildings[0];
-        let gx = office.x + 2, gy = office.y + 2, tries = 0;
-        while (!isWalkable(gx, gy) && tries++ < 60) { gx = Math.floor(Math.random() * S.mapW); gy = Math.floor(Math.random() * S.mapH); }
-        walkers.push({ rid: r.id, x: gx + 0.5, y: gy + 0.5, tx: gx, ty: gy, speed: 0.35 + Math.random() * 0.25, phase: Math.random() * 10, pauseT: Math.random() * 2, bubble: null, bubbleT: 0, dir: 1 });
+        const spot = nearestWalkable(office.x + Math.floor(office.w / 2), office.y + office.h);
+        walkers.push({
+          rid: r.id, x: spot.gx + 0.5, y: spot.gy + 0.5, tx: spot.gx, ty: spot.gy,
+          speed: 0.35 + Math.random() * 0.25, phase: Math.random() * 10,
+          pauseT: Math.random() * 2, bubble: null, bubbleT: 0, dir: 1
+        });
       }
     }
     for (let i = walkers.length - 1; i >= 0; i--) if (!S.residents.find(r => r.id === walkers[i].rid)) walkers.splice(i, 1);
+  }
+
+  /* 被新建筑压住 / 目标格已被占用时脱困 */
+  function unstick(w) {
+    const cx = Math.floor(w.x), cy = Math.floor(w.y);
+    if (!isWalkable(cx, cy)) {
+      const spot = nearestWalkable(cx, cy);
+      w.x = spot.gx + 0.5; w.y = spot.gy + 0.5;
+      w.tx = spot.gx; w.ty = spot.gy;
+      w.pauseT = 0.2;
+      return true;
+    }
+    if (!isWalkable(w.tx, w.ty)) { w.tx = cx; w.ty = cy; w.pauseT = 0.1; return true; }
+    return false;
   }
 
   function pickTarget(w) {
@@ -96,6 +135,7 @@
       if (w.bubbleT > 0) { w.bubbleT -= dt; if (w.bubbleT <= 0) w.bubble = null; }
       else if (Math.random() < dt * 0.05) { w.bubble = BUBBLES[Math.floor(Math.random() * BUBBLES.length)]; w.bubbleT = 2.5; }
 
+      if (unstick(w)) continue;
       if (w.pauseT > 0) { w.pauseT -= dt; continue; }
       const dx = w.tx + 0.5 - w.x, dy = w.ty + 0.5 - w.y;
       const dist = Math.hypot(dx, dy);
@@ -134,6 +174,8 @@
   function updateCars(dt) {
     for (const c of cars) {
       if (!c.onRoad) continue;
+      // 脚下的路被拆了 → 下一帧由 syncCars 重新安排到别的路上
+      if (!isRoad(Math.floor(c.x), Math.floor(c.y))) { c.onRoad = false; continue; }
       const dx = c.tx + 0.5 - c.x, dy = c.ty + 0.5 - c.y;
       const dist = Math.hypot(dx, dy);
       if (dist < 0.05) {
@@ -208,11 +250,14 @@
     ctx.fillStyle = '#3e7229';
     ctx.beginPath(); ctx.moveTo(p2.x, p2.y); ctx.lineTo(p1.x, p1.y); ctx.lineTo(p1.x, p1.y + d); ctx.lineTo(p2.x, p2.y + d); ctx.closePath(); ctx.fill();
 
-    // 草地格子
+    // 草地格子（有 ground_grass 贴图就用贴图，否则代码绘制）
+    const grassA = Assets.opt('ground_grass'), grassB = Assets.opt('ground_grass2') || grassA;
     for (let gy = 0; gy < S.mapH; gy++) {
       for (let gx = 0; gx < S.mapW; gx++) {
         const p = iso(gx + 0.5, gy + 0.5);
         if (p.x < -TW || p.x > canvas.width + TW || p.y < -TW || p.y > canvas.height + TW) continue;
+        const gim = (gx + gy) % 2 ? grassA : grassB;
+        if (gim) { ctx.drawImage(gim, p.x - TW / 2, p.y - TH() / 2, TW, TH()); continue; }
         diamond(p.x, p.y, TW, TH());
         ctx.fillStyle = (gx + gy) % 2 ? '#7ec850' : '#79c24b';
         ctx.fill();
@@ -264,14 +309,27 @@
 
     if (b.id === 'road') { drawRoadIso(b, pA, pB, pC, pD); return; }
 
-    // —— 优先使用美术贴图 ——
-    if (Assets.has(b.id)) {
-      const im = Assets.img(b.id);
-      if (im) {
-        drawBuildingSprite(b, im, pB, pC, pD, selected);
-        drawNamePlate(b, pA, pC);
-        return;
+    // —— 优先使用美术贴图（已交付资产 + manifest 里新放进来的贴图）——
+    const bim = Assets.opt(b.id);
+    if (bim) {
+      drawBuildingSprite(b, bim, pB, pC, pD, selected);
+      drawNamePlate(b, pA, pC);
+      return;
+    }
+
+    // —— 装饰小物（无贴图时）：不画彩色地块，只画阴影 + 大 emoji ——
+    if (info.cat === 'deco') {
+      const cx = (pA.x + pC.x) / 2, cy = (pA.y + pC.y) / 2;
+      ctx.fillStyle = 'rgba(30,60,20,0.22)';
+      ctx.beginPath(); ctx.ellipse(cx, cy, TW * 0.3, TW * 0.15, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.font = `${Math.round(TW * 0.85)}px "Segoe UI Emoji","Apple Color Emoji",sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(info.icon, cx, cy - 2);
+      if (selected) {
+        ctx.strokeStyle = '#f5c518'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.ellipse(cx, cy, TW * 0.34, TW * 0.18, 0, 0, Math.PI * 2); ctx.stroke();
       }
+      return;
     }
 
     // 地基阴影
@@ -357,10 +415,25 @@
   }
 
   function drawRoadIso(b, pA, pB, pC, pD) {
+    const bx = b.x, by = b.y;
+    const nRoads = (isRoad(bx + 1, by) ? 1 : 0) + (isRoad(bx - 1, by) ? 1 : 0) +
+                   (isRoad(bx, by + 1) ? 1 : 0) + (isRoad(bx, by - 1) ? 1 : 0);
+    // 有路面贴图就用贴图（三向以上路口优先斑马线贴图），标线仍由代码画，保证拼接方向正确
+    const rim = (nRoads >= 3 ? Assets.opt('road_crosswalk') : null) || Assets.opt('road_tile');
+    if (rim) {
+      const p = iso(bx + 0.5, by + 0.5);
+      ctx.drawImage(rim, p.x - TW / 2, p.y - TH() / 2, TW, TH());
+      if (nRoads < 3) drawRoadMarks(b);
+      return;
+    }
     ctx.beginPath(); ctx.moveTo(pA.x, pA.y); ctx.lineTo(pB.x, pB.y); ctx.lineTo(pC.x, pC.y); ctx.lineTo(pD.x, pD.y); ctx.closePath();
     ctx.fillStyle = '#5a5a5a'; ctx.fill();
     ctx.strokeStyle = '#4a4a4a'; ctx.lineWidth = 1; ctx.stroke();
-    // 根据相邻道路画中线
+    drawRoadMarks(b);
+  }
+
+  /* 道路标线：按邻接方向代码绘制（任意拼接方向都不会歪） */
+  function drawRoadMarks(b) {
     const cx = b.x, cy = b.y;
     const c = iso(cx + 0.5, cy + 0.5);
     ctx.strokeStyle = '#f5c518'; ctx.lineWidth = Math.max(1.5, TW * 0.045);
@@ -434,10 +507,9 @@
       // 头顶帽子（装扮）
       const headY2 = gy - sh * 0.9;
       if (r.hat) {
-        const hatE = CATALOG.findOutfit(r.hat);
-        if (hatE) { ctx.font = `${H * 0.34}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(hatE.emoji, p.x, headY2 - H * 0.12); }
+        drawHat(r.hat, p.x, headY2 - H * 0.12, H * 0.34);
       }
-      drawWalkerOverlays(w, r, p, gy, headY2 + H * 0.05, H);
+      queueOverlay(() => drawWalkerOverlays(w, r, p, gy, headY2 + H * 0.05, H));
       return;
     }
 
@@ -490,8 +562,7 @@
     }
     // 帽子
     if (r.hat) {
-      const hatE = CATALOG.findOutfit(r.hat);
-      if (hatE) { ctx.font = `${H * 0.32}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(hatE.emoji, p.x, headY - headR * 1.1); }
+      drawHat(r.hat, p.x, headY - headR * 1.1, H * 0.32);
     } else {
       // 头顶凸点
       ctx.beginPath(); ctx.ellipse(p.x, headY - headR, headR * 0.42, headR * 0.2, 0, 0, Math.PI * 2);
@@ -499,8 +570,27 @@
     }
 
     ctx.restore();
-    drawWalkerOverlays(w, r, p, gy, headY - headR, H);
+    queueOverlay(() => drawWalkerOverlays(w, r, p, gy, headY - headR, H));
   }
+
+  /* 帽子：有 hat_xxx 贴图用贴图，否则画 emoji */
+  function drawHat(hatId, cx, cy, size) {
+    const him = Assets.opt(hatId);
+    if (him) {
+      const w = size * 1.5, h = w * (him.naturalHeight / him.naturalWidth);
+      ctx.drawImage(him, cx - w / 2, cy - h * 0.62, w, h);
+      return;
+    }
+    const hatE = CATALOG.findOutfit(hatId);
+    if (!hatE) return;
+    ctx.font = `${size}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(hatE.emoji, cx, cy);
+  }
+
+  /* 小人的名字/❓/气泡统一放到最上层绘制，避免被后画的建筑贴图挡住 */
+  const overlayQueue = [];
+  function queueOverlay(fn) { overlayQueue.push(fn); }
+  function flushOverlays() { for (const fn of overlayQueue) fn(); overlayQueue.length = 0; }
 
   /* 小人公共覆盖层：名字 + ❓ + 生活气泡 */
   function drawWalkerOverlays(w, r, p, gy, headTop, H) {
@@ -549,6 +639,16 @@
     if (p.x < -40 || p.x > canvas.width + 40) return;
     ctx.beginPath(); ctx.ellipse(p.x, p.y + 2, TW * 0.2, TW * 0.07, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fill();
+    const vim = Assets.opt('veh_' + c.vid);
+    if (vim) {
+      const w = TW * 0.85, h = w * (vim.naturalHeight / vim.naturalWidth);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      if (c.tx - c.x + (c.y - c.ty) >= 0) ctx.scale(-1, 1);   // 朝右上行驶时镜像
+      ctx.drawImage(vim, -w / 2, -h + TW * 0.06, w, h);
+      ctx.restore();
+      return;
+    }
     ctx.font = `${TW * 0.42}px serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(v.icon, p.x, p.y - TW * 0.14);
@@ -568,6 +668,12 @@
       owned.slice(0, 2).forEach((v, i) => {
         const p = iso(b.x + 0.5 + i * 1.4, b.y + b.h - 0.4);
         const bob = t === 'ship' ? Math.sin(time * 1.5 + i) * 2 : 0;
+        const vim = Assets.opt('veh_' + v.id);
+        if (vim) {
+          const w = TW * 1.5, h = w * (vim.naturalHeight / vim.naturalWidth);
+          ctx.drawImage(vim, p.x - w / 2, p.y - z - h + bob, w, h);
+          return;
+        }
         ctx.font = `${TW * 0.55}px serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(v.icon, p.x, p.y - z - TW * 0.28 + bob);
@@ -603,6 +709,24 @@
     }
   }
 
+  /* ---------- 等距深度排序 ----------
+   * a 在 b 之后画（a 在前景）当且仅当 a 的占地矩形整体位于 b 的南面或东面。
+   * 用插入排序（n 很小），对"互不比较"的非传递情况也能稳定收敛。 */
+  const EPS = 1e-6;
+  function isoCmp(a, b) {
+    if (a.x1 <= b.x0 + EPS || a.y1 <= b.y0 + EPS) return -1; // a 在 b 的西/北 → 先画
+    if (b.x1 <= a.x0 + EPS || b.y1 <= a.y0 + EPS) return 1;  // b 在 a 的西/北 → 后画
+    return (a.x0 + a.y0) - (b.x0 + b.y0) || a.tie - b.tie;   // 占地重叠(小人站在路上等)
+  }
+  function sortIso(arr) {
+    for (let i = 1; i < arr.length; i++) {
+      const cur = arr[i];
+      let j = i - 1;
+      while (j >= 0 && isoCmp(arr[j], cur) > 0) { arr[j + 1] = arr[j]; j--; }
+      arr[j + 1] = cur;
+    }
+  }
+
   /* ---------- 主绘制循环 ---------- */
   let lastT = 0;
   function loop(t) {
@@ -618,15 +742,26 @@
 
     drawGround();
 
-    // 深度排序：建筑 + 小人 + 车（按 gx+gy 排）
+    // 深度排序（等距画家算法）：用"占地矩形"判断前后，而不是简单的 gx+gy，
+    // 否则站在大建筑正前方的小人会被建筑贴图盖住（看起来走进了建筑里）
     const items = [];
-    for (const b of S.buildings) items.push({ d: b.x + b.w + b.y + b.h, f: () => drawBuildingIso(b, b.uid === selectedUid), sel: b.uid === selectedUid, b });
-    for (const w of walkers) items.push({ d: w.x + w.y + 0.01, f: () => drawWalker(w) });
-    for (const c of cars) if (c.onRoad) items.push({ d: c.x + c.y + 0.02, f: () => drawCar(c) });
-    items.sort((a, b2) => a.d - b2.d);
+    for (const b of S.buildings) items.push({
+      x0: b.x, y0: b.y, x1: b.x + b.w, y1: b.y + b.h, tie: 0,
+      f: () => drawBuildingIso(b, b.uid === selectedUid)
+    });
+    for (const w of walkers) items.push({
+      x0: w.x - 0.02, y0: w.y - 0.02, x1: w.x + 0.02, y1: w.y + 0.02, tie: 1,
+      f: () => drawWalker(w)
+    });
+    for (const c of cars) if (c.onRoad) items.push({
+      x0: c.x - 0.02, y0: c.y - 0.02, x1: c.x + 0.02, y1: c.y + 0.02, tie: 2,
+      f: () => drawCar(c)
+    });
+    sortIso(items);
     for (const it of items) it.f();
 
     drawDocked();
+    flushOverlays();
 
     // 选中框
     if (selectedUid) {

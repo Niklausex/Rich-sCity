@@ -41,7 +41,7 @@
     $('stat-pop').textContent = `${S.residents.length}/${Game.popCap()}`;
     $('stat-happy').textContent = Game.happiness();
     $('stat-joy').textContent = S.joy;
-    $('stat-income').textContent = Game.weeklyResidentIncome() + Game.weeklyBusinessRevenue();
+    $('stat-income').textContent = Game.weeklyIncome();
     $('stat-tax').textContent = Game.weeklyTax();
     $('city-name').textContent = S.cityName;
     const rank = Game.cityRank();
@@ -64,7 +64,9 @@
     const s = scale || 1;
     const spriteId = window.Assets && Assets.charSprite(r);
     if (spriteId) {
-      const hat = r.hat ? `<span style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:${20 * s}px">${CATALOG.findOutfit(r.hat)?.emoji || ''}</span>` : '';
+      const hat = r.hat
+        ? `<span style="position:absolute;top:${-12 * s}px;left:50%;transform:translateX(-50%);font-size:${20 * s}px;z-index:2">${Assets.iconHTML(r.hat, CATALOG.findOutfit(r.hat)?.emoji || '', Math.round(24 * s))}</span>`
+        : '';
       return `<span style="position:relative;display:inline-block">${hat}<img src="/static/assets/${spriteId}.webp" style="height:${74 * s}px;width:auto;display:block;filter:drop-shadow(0 3px 4px rgba(0,0,0,.25))" alt="${r.name}"></span>`;
     }
     return minifigSVG(r, scale);
@@ -123,10 +125,16 @@
     const S = Game.state;
     panelTitle.innerHTML = '<i class="fas fa-people-group"></i> 城市居民';
     const cost = CATALOG.residentCost(S.residents.length);
-    let html = `<div class="card" style="background:#fff8e0">
-      <div class="grow"><h4>👋 招募新居民</h4><p>人口：${S.residents.length}/${Game.popCap()}（住房不够时先建住宅）</p></div>
-      <button class="btn btn-green btn-small" id="btn-recruit">💰${cost} 招募</button>
-    </div>`;
+    // 招募入口由 CATALOG.RECRUIT_ENABLED 控制（本版本关闭，代码与候选池全部保留）
+    let html = Game.recruitEnabled()
+      ? `<div class="card" style="background:#fff8e0">
+          <div class="grow"><h4>👋 招募新居民</h4><p>人口：${S.residents.length}/${Game.popCap()}（住房不够时先建住宅）</p></div>
+          <button class="btn btn-green btn-small" id="btn-recruit">💰${cost} 招募</button>
+        </div>`
+      : `<div class="card" style="background:#f4f7fb">
+          <div class="grow"><h4>👪 市长的家人（${S.residents.length}位）</h4>
+          <p>本版本先专心经营城市，暂不招募新居民。建筑解锁看的是<b>每周城市收入</b>，不看人口啦！</p></div>
+        </div>`;
     for (const r of S.residents) {
       const career = CATALOG.CAREERS[r.level - 1];
       const need = CATALOG.xpNeeded(r.level);
@@ -146,7 +154,7 @@
       </div>`;
     }
     panelContent.innerHTML = html;
-    $('btn-recruit').onclick = () => {
+    if ($('btn-recruit')) $('btn-recruit').onclick = () => {
       const r = Game.recruitResident();
       if (r.ok) { toast(`🎉 「${r.resident.name}」搬进城市啦！`, 'good'); confetti(16); refreshTop(); render(); }
       else toast(r.msg, 'bad');
@@ -176,7 +184,7 @@
           <div class="shop-item ${!r.hat ? 'locked' : ''}" data-hat=""><div class="s-icon">🚫</div><div class="s-name">不戴帽子</div><div class="s-cost owned">免费</div></div>
           ${hatItems.map(h => {
             const owned = S.outfits.includes(h.id);
-            return `<div class="shop-item" data-hat="${h.id}"><div class="s-icon">${h.emoji}</div><div class="s-name">${h.name}</div>
+            return `<div class="shop-item" data-hat="${h.id}"><div class="s-icon">${Assets.iconHTML(h.id, h.emoji, 40)}</div><div class="s-name">${h.name}</div>
               <div class="s-cost ${owned ? 'owned' : ''}">${owned ? (r.hat === h.id ? '✅ 戴着呢' : '已拥有') : '💰' + h.cost}</div></div>`;
           }).join('')}
         </div>
@@ -221,17 +229,23 @@
   function renderBuild() {
     const S = Game.state;
     panelTitle.innerHTML = '<i class="fas fa-hammer"></i> 建造中心';
-    const cats = [['business', '💰商业'], ['public', '🌳公共'], ['house', '🏠住宅'], ['support', '🅿️配套']];
-    let html = `<div class="panel-tabs">${cats.map(c => `<button class="ptab ${buildTab === c[0] ? 'active' : ''}" data-tab="${c[0]}">${c[1]}</button>`).join('')}</div><div class="shop-grid">`;
+    const cats = [['business', '💰商业'], ['public', '🏫公共'], ['house', '🏠住宅'], ['support', '🅿️配套'], ['deco', '🌳装饰']];
+    const peak = Game.peakIncome(), nxt = Game.nextUnlock();
+    let html = `<div class="card" style="background:#eef6ff;margin-bottom:8px"><div class="grow">
+        <h4>💵 当前周收入 ${Game.weeklyIncome()} 元/周</h4>
+        <p>${nxt ? `周收入达到 <b>${nxt.unlockIncome}</b> 元 → 解锁「${nxt.icon}${nxt.name}」` : '🎉 所有建筑已全部解锁！'}</p>
+        <div class="xpbar"><div style="width:${nxt ? Math.min(100, peak / nxt.unlockIncome * 100) : 100}%"></div></div>
+      </div></div>
+      <div class="panel-tabs">${cats.map(c => `<button class="ptab ${buildTab === c[0] ? 'active' : ''}" data-tab="${c[0]}">${c[1]}</button>`).join('')}</div><div class="shop-grid">`;
     for (const b of CATALOG.BUILDINGS.filter(x => x.cat === buildTab)) {
-      const locked = S.residents.length < b.unlockPop;
+      const locked = !Game.isUnlocked(b);
       const thumb = window.Assets && Assets.has(b.id)
         ? `<img src="/static/assets/${b.id}.webp" style="height:52px;width:auto;max-width:72px;object-fit:contain" alt="${b.name}">`
         : b.icon;
       html += `<div class="shop-item ${locked ? 'locked' : ''}" data-build="${locked ? '' : b.id}">
         <div class="s-icon">${thumb}</div><div class="s-name">${b.name}</div>
         <div class="s-desc">${b.desc}<br>占地${b.w}×${b.h}格</div>
-        <div class="s-cost">${locked ? `🔒 人口${b.unlockPop}解锁` : '💰' + b.cost}</div>
+        <div class="s-cost">${locked ? `🔒 周收入${b.unlockIncome}解锁` : '💰' + b.cost}</div>
       </div>`;
     }
     html += '</div>';
@@ -239,7 +253,7 @@
     panelContent.querySelectorAll('.ptab').forEach(t => t.onclick = () => { buildTab = t.dataset.tab; renderBuild(); });
     panelContent.querySelectorAll('[data-build]').forEach(el => el.onclick = () => {
       const bid = el.dataset.build;
-      if (!bid) { toast('人口还不够，先招募居民吧！', 'bad'); return; }
+      if (!bid) { toast('周收入还不够，多建商铺、多答题让居民升级吧！', 'bad'); return; }
       const b = CATALOG.findBuilding(bid);
       if (Game.state.money < b.cost) { toast(`「${b.name}」需要💰${b.cost}，先去答题/收税赚钱吧！`, 'bad'); return; }
       closePanel();
@@ -259,7 +273,7 @@
       const owned = S.vehicles.includes(v.id);
       const needB = v.need && !S.buildings.some(b => b.id === v.need);
       html += `<div class="shop-item ${needB ? 'locked' : ''}" data-veh="${v.id}">
-        <div class="s-icon">${v.icon}</div><div class="s-name">${v.name}</div>
+        <div class="s-icon">${Assets.iconHTML('veh_' + v.id, v.icon, 46)}</div><div class="s-name">${v.name}</div>
         <div class="s-desc">${v.desc}</div>
         <div class="s-cost ${owned ? 'owned' : ''}">${owned ? '✅ 已拥有' : needB ? `🔒 需要${CATALOG.findBuilding(v.need).name}` : '💰' + v.cost}</div>
       </div>`;
@@ -286,13 +300,14 @@
     let html = `
       <div class="card"><div class="grow">
         <h4>${rank.icon} 城市等级：${rank.name}</h4>
-        <p>${nextRank ? `人口达到 ${nextRank.minPop} 人升级为「${nextRank.icon}${nextRank.name}」` : '已经是最高等级——超级城市！'}</p>
-        <div class="xpbar"><div style="width:${nextRank ? Math.min(100, S.residents.length / nextRank.minPop * 100) : 100}%"></div></div>
+        <p>${nextRank ? `周收入达到 ${nextRank.minIncome} 元/周升级为「${nextRank.icon}${nextRank.name}」` : '已经是最高等级——超级城市！'}</p>
+        <div class="xpbar"><div style="width:${nextRank ? Math.min(100, Game.peakIncome() / nextRank.minIncome * 100) : 100}%"></div></div>
       </div></div>
       <div class="card"><div class="grow">
         <h4>💰 本周税收预算</h4>
-        <p>居民工资合计：${resInc}元/周 → 居民税(10%)：<b>${Math.round(resInc * 0.1)}元</b><br>
-        商业营业额：${bizRev}元/周 → 商业税(10%)：<b>${Math.round(bizRev * 0.1)}元</b><br>
+        <p>💵 城市周收入（解锁/等级看这个，不含幸福度浮动）：<b>${Game.weeklyIncome()}元/周</b>（历史最高 ${Game.peakIncome()}元）<br>
+        居民工资合计：${resInc}元/周 → 居民税(10%)：<b>${Math.round(resInc * 0.1)}元</b><br>
+        产业营业额(含房租)：${bizRev}元/周 → 产业税(10%)：<b>${Math.round(bizRev * 0.1)}元</b><br>
         幸福度 ${Game.happiness()} → 消费热情 ×${(0.5 + Game.happiness() / 100).toFixed(2)}（多建公园、学校可以提高哦）</p>
       </div>
       <button class="btn btn-green" id="btn-collect" ${can ? '' : 'disabled'}>${can ? `收税 💰${Game.weeklyTax()}` : `还差${Game.daysUntilTax()}天`}</button></div>
@@ -367,7 +382,7 @@
       </div></div>
       <div class="card"><div class="grow">
         <h4>ℹ️ 关于 Rich's City</h4>
-        <p>版本 1.0 · 一款为小市长打造的乐高风格学习城市游戏<br>答题赚钱 → 建造城市 → 招募居民 → 解锁车辆，努力建成超级城市吧！</p>
+        <p>版本 1.0 · 一款为小市长打造的乐高风格学习城市游戏<br>答题赚钱 → 建造城市 → 提升周收入解锁新建筑 → 解锁车辆，努力建成超级城市吧！</p>
       </div></div>`;
     $('btn-savename').onclick = () => { Game.renameCity($('inp-cityname').value); toast('✅ 城市名字改好啦'); refreshTop(); };
     panelContent.querySelectorAll('[data-grade]').forEach(b => b.onclick = () => {
@@ -386,7 +401,7 @@
     const isOffice = b.id === 'office_wood';
     const modal = $('modal-box'), overlay = $('modal-overlay');
     let statLine = '';
-    if (info.income) statLine += `💰 周营业额 ${info.income}元（税收10%）<br>`;
+    if (info.income) statLine += `💰 周收入 ${info.income}元${info.popCap ? '（房租）' : ''}（税收10%）<br>`;
     if (info.happy) statLine += `😊 幸福度 +${info.happy}<br>`;
     if (info.popCap) statLine += `🏠 提供住房 ${info.popCap}人<br>`;
     modal.innerHTML = `
