@@ -50,10 +50,11 @@
 
 ## 美术素材 🎨
 - 已交付：**52 张**（45 建筑 + 8 位家人角色，抠图 + WebP，125MB → 2.6MB）
-- 待补清单：见 **[`docs/ART_ASSETS.md`](docs/ART_ASSETS.md)**（125 张：4 张地面材质 / 24 位招募居民(暂缓) / 47 款车辆 / 8 顶帽子 / 14 个装饰小物 / UI 徽章等，含视角、尺寸、命名、提示词要点）
-- 提示词（可直接复制粘贴 + 文件名对照表）：
-  - **[`docs/ART_PROMPTS_P0.md`](docs/ART_PROMPTS_P0.md)** — 4 张地面材质（当前优先）+ 24 位居民（暂缓保留）
-  - **[`docs/ART_PROMPTS_P1.md`](docs/ART_PROMPTS_P1.md)** — 47 台车辆 + 14 个树木装饰 + 8 顶帽子
+- 待补清单：见 **[`docs/ART_ASSETS.md`](docs/ART_ASSETS.md)**（65 张 + 暂缓 24 张：地面/道路 4 / 装饰小物 14 / 车辆 39 / 帽子 8 / 招募居民 24(暂缓)，含视角、命名、交付流程）
+- 提示词（每条可直接复制粘贴，文件名一一对应代码 ID）：
+  - **[`docs/ART_PROMPTS_P0.md`](docs/ART_PROMPTS_P0.md)** — 地面/道路 4 张 + 装饰小物 14 张（当前最优先）
+  - **[`docs/ART_PROMPTS_P1.md`](docs/ART_PROMPTS_P1.md)** — 车辆 39 张（车头必须朝左下）
+  - **[`docs/ART_PROMPTS_P2.md`](docs/ART_PROMPTS_P2.md)** — 帽子 8 张 + 招募居民 24 张（居民暂缓）
 - 风格基准：Q 版 3D 软胶玩偶 / 黏土微缩景观（chibi vinyl toy, smooth clay render），角色 3/4 侧身朝左下，光源左上，透明背景不带地面投影
 - 接入流程：PNG 放进 `art_inbox/` → 抠图压缩转 WebP 落到 `public/static/assets/` → `npm run assets:index` 生成 `manifest.json` → **游戏自动切换成贴图，无需改代码**（缺失素材静默回退 emoji / 代码绘制，不产生 404）
 
