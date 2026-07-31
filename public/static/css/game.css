@@ -189,6 +189,29 @@ html,body { width:100%; height:100%; overflow:hidden; font-family:"PingFang SC",
 .quiz-result { text-align:center; padding:6px 0 2px; font-size:17px; font-weight:800; }
 .modal-actions { display:flex; gap:10px; justify-content:center; padding:14px 20px 20px; flex-wrap:wrap; }
 
+/* 填空题 */
+.fill-input {
+  width:min(260px,60vw); padding:12px 16px; border:3px solid #e3dcc8; border-radius:12px;
+  font-size:20px; font-weight:800; color:#333; font-family:inherit; text-align:center;
+  background:#faf7ef; outline:none; transition:border .15s;
+}
+.fill-input:focus { border-color:#1e9ce0; background:#fff; }
+
+/* 连线题 */
+.match-area { position:relative; display:flex; justify-content:space-between; gap:60px; padding:4px 2px; }
+#match-svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:1; }
+.match-col { display:flex; flex-direction:column; gap:12px; flex:1; min-width:0; z-index:2; }
+.match-item {
+  border:3px solid #e3dcc8; background:#faf7ef; border-radius:12px; padding:11px 10px;
+  font-size:16px; font-weight:800; color:#444; cursor:pointer; font-family:inherit;
+  transition:all .12s; text-align:center; word-break:break-all;
+}
+.match-item:hover { border-color:#1e9ce0; }
+.match-item.picked { border-color:#fe8a18; background:#fff3e0; transform:scale(1.05); box-shadow:0 3px 10px rgba(254,138,24,.3); }
+.match-item.linked { border-color:#9ab5d0; background:#eef5fb; }
+.match-item.right-item { border-color:#3ab54a; background:#dcf5df; }
+.match-item.wrong-item { border-color:#e4574e; background:#ffe0df; }
+
 /* 表单 */
 .form-row { margin-bottom:12px; }
 .form-row label { display:block; font-weight:800; font-size:13px; color:#555; margin-bottom:5px; }

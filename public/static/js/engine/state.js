@@ -39,7 +39,7 @@
   }
 
   // 特殊建筑：市长办公室（不在商店出售）
-  CATALOG.OFFICE = { id: 'office_wood', cat: 'special', name: '市长办公室', icon: '🏚️', cost: 0, w: 2, h: 2, color: '#8a6a3a', desc: '一切开始的地方' };
+  CATALOG.OFFICE = { id: 'office_wood', cat: 'special', name: '市长办公室', icon: '🏛️', cost: 0, w: 2, h: 2, fl: 1.4, color: '#a8763a', desc: '一切开始的地方' };
 
   function save(state) {
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch (e) { console.warn('保存失败', e); }
