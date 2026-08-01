@@ -331,7 +331,8 @@
     const bank = bankFor(subject, grade);
     if (!bank.length) return null;
     const fresh = bank.filter(x => !recent.includes(x.q));
-    const pool = fresh.length ? fresh : bank;
+    if (!fresh.length) return null; // 题库已全部掌握/出尽 → 交给上层回退（生成器/其他题型）
+    const pool = fresh;
     const item = pool[R(pool.length)];
     const idx = shuffle(item.opts.map((_, i) => i));
     return { type: 'choice', subject, q: item.q, opts: idx.map(i => item.opts[i]), a: idx.indexOf(item.a), tip: item.tip };
@@ -354,7 +355,8 @@
       // —— 填空 ——
       if (subject === 'math') {
         const gens = MathFillGen[g] || MathFillGen[3];
-        q = gens[R(gens.length)]();
+        let guard = 0;
+        do { q = gens[R(gens.length)](); } while (recent.includes(q.q) && ++guard < 15);
       } else if (subject === 'english') {
         q = genVocabFill(g, recent);
         if (!q) {
@@ -366,12 +368,17 @@
       }
     } else if (roll < 0.5) {
       // —— 判断 ——
-      if (subject === 'math') q = MathJudgeGen(g);
+      if (subject === 'math') {
+        let guard = 0;
+        do { q = MathJudgeGen(g); } while (recent.includes(q.q) && ++guard < 15);
+      }
       else if (JUDGE_BANK[subject]) {
         const bank = JUDGE_BANK[subject];
         const fresh = bank.filter(x => !recent.includes(x.q));
-        const item = (fresh.length ? fresh : bank)[R((fresh.length ? fresh : bank).length)];
-        q = { type: 'judge', q: item.q, answer: item.answer, tip: item.tip };
+        if (fresh.length) {
+          const item = fresh[R(fresh.length)];
+          q = { type: 'judge', q: item.q, answer: item.answer, tip: item.tip };
+        } // 判断题全部掌握 → 回退到选择题
       }
     }
 
@@ -380,13 +387,20 @@
       if (subject === 'math') {
         const gens = MathGen[g];
         let guard = 0;
-        do { q = gens[R(gens.length)](); guard++; } while (recent.includes(q.q) && guard < 10);
+        do { q = gens[R(gens.length)](); guard++; } while (recent.includes(q.q) && guard < 25);
       } else {
         // 英语：60% 用词表生成器（可产出上千道不重复题），其余走静态题库
         if (subject === 'english' && Math.random() < 0.6) {
           for (let t = 0; t < 5 && !q; t++) q = genVocabChoice(g, recent);
         }
-        if (!q) q = drawChoiceFromBank(subject, g, recent) || genVocabChoice(g, recent) || (() => { const gens = MathGen[g]; return gens[R(gens.length)](); })();
+        if (!q) q = drawChoiceFromBank(subject, g, recent);
+        // 静态题库耗尽 → 词汇生成器多试几次 → 最后才用数学生成器（带排除重试）
+        if (!q) for (let t = 0; t < 8 && !q; t++) q = genVocabChoice(g, recent);
+        if (!q) {
+          const gens = MathGen[g];
+          let guard = 0;
+          do { q = gens[R(gens.length)](); } while (recent.includes(q.q) && ++guard < 25);
+        }
       }
     }
     q.subject = subject;

@@ -34,6 +34,8 @@
       dailyQuestions: [],      // 今日各居民问题 {residentId, subject, done}
       askedToday: {},          // 今日各居民已答题数 {residentId: n}，每日上限50
       recentQuestions: [],     // 最近出过的题目(防重复)
+      mastered: [],            // 已答对的题目(永久不再出现)
+      wrongPool: [],           // 错题本：答错的题目完整对象，答对才移出
       stats: { totalAnswered: 0, totalRight: 0, taxCollected: 0, peakIncome: 0 },
       log: []
     };
@@ -74,6 +76,8 @@
     }
     // 高频答题：补齐每日计数器
     if (!s.askedToday) s.askedToday = {};
+    if (!s.mastered) s.mastered = [];
+    if (!s.wrongPool) s.wrongPool = [];
     // 招募居民补上美术贴图 key（按名字匹配候选池）
     for (const r of s.residents) {
       if (r.sprite === undefined) {

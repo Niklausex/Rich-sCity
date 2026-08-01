@@ -142,7 +142,37 @@
 
     // 抽取某居民今天的题
     drawFor(dq) {
-      const q = Questions.drawQuestion(dq.subject, S.grade, S.recentQuestions);
+      // 30% 概率优先复习错题（今天还没出过的）
+      if (S.wrongPool && S.wrongPool.length && Math.random() < 0.3) {
+        const fresh = S.wrongPool.filter(w => !S.recentQuestions.includes(w.q));
+        if (fresh.length) {
+          const q = this.reshuffleQuestion(fresh[Math.floor(Math.random() * fresh.length)]);
+          q.review = true;   // 标记为错题复习，UI 显示徽标
+          return q;
+        }
+      }
+      // 新题：排除最近出过的 + 已掌握的
+      const exclude = S.recentQuestions.concat(S.mastered || []);
+      const q = Questions.drawQuestion(dq.subject, S.grade, exclude);
+      return q;
+    },
+
+    // 选项重洗牌：避免孩子靠记选项位置而不是真会了
+    reshuffleQuestion(src) {
+      const q = JSON.parse(JSON.stringify(src));
+      if (q.type === 'choice' && Array.isArray(q.opts)) {
+        const ansText = q.opts[q.a];
+        for (let i = q.opts.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [q.opts[i], q.opts[j]] = [q.opts[j], q.opts[i]];
+        }
+        q.a = q.opts.indexOf(ansText);
+      } else if (q.type === 'match' && Array.isArray(q.right)) {
+        for (let i = q.right.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [q.right[i], q.right[j]] = [q.right[j], q.right[i]];
+        }
+      }
       return q;
     },
 
@@ -156,6 +186,24 @@
       // 记录防重复（扩大到300条，适配高频答题）
       S.recentQuestions.push(question.q);
       if (S.recentQuestions.length > 300) S.recentQuestions.shift();
+      // 已掌握/错题本维护
+      if (!S.mastered) S.mastered = [];
+      if (!S.wrongPool) S.wrongPool = [];
+      if (correct) {
+        // 答对 → 永久不再出现；若是错题复习答对 → 移出错题本
+        // （连线题题面固定但内容每次不同，不进已掌握名单）
+        if (question.type !== 'match' && !S.mastered.includes(question.q)) S.mastered.push(question.q);
+        if (S.mastered.length > 5000) S.mastered.shift();
+        S.wrongPool = S.wrongPool.filter(w => !(w.q === question.q && JSON.stringify(w.left || null) === JSON.stringify(question.left || null)));
+      } else {
+        // 答错 → 存进错题本（去重），后续会重新出现直到答对
+        if (!S.wrongPool.some(w => w.q === question.q)) {
+          const snap = JSON.parse(JSON.stringify(question));
+          delete snap.review;
+          S.wrongPool.push(snap);
+          if (S.wrongPool.length > 200) S.wrongPool.shift();
+        }
+      }
 
       const result = { correct, leveledUp: false, gift: null, joyDelta: 0, moneyBonus: 0 };
       if (correct) {
