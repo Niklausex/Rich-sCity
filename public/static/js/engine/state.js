@@ -36,6 +36,10 @@
       recentQuestions: [],     // 最近出过的题目(防重复)
       mastered: [],            // 已答对的题目(永久不再出现)
       wrongPool: [],           // 错题本：答错的题目完整对象，答对才移出
+      reviewQueue: [],         // 遗忘曲线巩固队列 {key, day, snap}，7天后再考一次
+      writings: [],            // 孩子的创作作品 {title, text, day, ts}
+      reading: null,           // 今日跟读 {idx, day, status:'todo'|'pending'|'approved'}
+      createdToday: 0,         // 今日已出创作题数（每日上限2）
       stats: { totalAnswered: 0, totalRight: 0, taxCollected: 0, peakIncome: 0 },
       log: []
     };
@@ -78,6 +82,10 @@
     if (!s.askedToday) s.askedToday = {};
     if (!s.mastered) s.mastered = [];
     if (!s.wrongPool) s.wrongPool = [];
+    if (!s.reviewQueue) s.reviewQueue = [];
+    if (!s.writings) s.writings = [];
+    if (s.reading === undefined) s.reading = null;
+    if (typeof s.createdToday !== 'number') s.createdToday = 0;
     // 招募居民补上美术贴图 key（按名字匹配候选池）
     for (const r of s.residents) {
       if (r.sprite === undefined) {

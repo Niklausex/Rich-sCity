@@ -30,15 +30,16 @@
 | `src/index.tsx` | Hono 入口，输出 HTML 骨架 + 引 CDN（Tailwind）+ 静态 JS |
 | `public/static/js/main.js` | 启动、主循环、事件绑定 |
 | `public/static/js/engine/state.js` | 存档读写、存档迁移（含 v3.1 的 `POP_TO_INCOME` 老档兑换） |
-| `public/static/js/engine/game.js` | 经济/税收/幸福度/解锁逻辑（`weeklyIncome()` / `peakIncome()` / `isUnlocked()` / `nextUnlock()`）+ **答题额度系统**：`DAILY_LIMIT=50`（每居民每日上限）、`SUBJECT_WEIGHTS`（英30/科25/通25/数12/语8）、`rollSubject()`、`askedCount/canAsk/refillQuestion`、`S.askedToday` 按居民计数（每天清零）；**已掌握/错题本**：`S.mastered`（答对题面，永久排除，连线题除外，上限5000）、`S.wrongPool`（答错题完整对象，上限200，答对移出）、`drawFor` 30%概率复习错题（`q.review=true`，`reshuffleQuestion` 重洗选项），抽新题排除 recent+mastered；questions.js 各静态库耗尽时返回 null 逐级回退到生成器（数学生成器带排除重试） |
+| `public/static/js/engine/game.js` | 经济/税收/幸福度/解锁逻辑（`weeklyIncome()` / `peakIncome()` / `isUnlocked()` / `nextUnlock()`）+ **答题额度系统**：`DAILY_LIMIT=50`（每居民每日上限）、`SUBJECT_WEIGHTS`（英30/科25/通25/数12/语8）、`rollSubject()`、`askedCount/canAsk/refillQuestion`、`S.askedToday` 按居民计数（每天清零）；**已掌握/错题本**：`S.mastered`（答对题面，永久排除，连线题除外，上限5000）、`S.wrongPool`（答错题完整对象，上限200，答对移出）、`drawFor` 30%概率复习错题（`q.review=true`，`reshuffleQuestion` 重洗选项），抽新题排除 recent+mastered；questions.js 各静态库耗尽时返回 null 逐级回退到生成器（数学生成器带排除重试）；**v3.4 新增**：`qKey(q)`（听音/创作题用 `q.qkey` 去重）、`S.reviewQueue` 遗忘曲线（首次答对入队 {key,day,snap}，7天后 `drawFor` 20%概率巩固复习 `q.review='consolidate'`，再对→移出队列真掌握，答错→移出 mastered 重学并入错题本，上限500）、`drawFor` 语文35%概率出创作题（`S.createdToday<2`）、`submitWriting`（存 `S.writings` 上限200 + 恒定奖励）、`todayReading/markReadingDone/approveReading`（每日跟读 todo→pending→approved，审批发 20元+快乐5，`newDayQuestions` 按 `(day-1)%15` 轮播短文并清零 createdToday） |
 | `public/static/js/data/catalog.js` | **唯一数据源**：59 建筑（含 14 装饰 deco_*）、39 车辆 VEHICLES、8 帽子 HATS、24 招募角色、`RECRUIT_ENABLED=false` |
 | `public/static/js/data/questions-data.js` | 基础静态题库（语/英/科/通识，按年级 3~6 分层） |
 | `public/static/js/data/questions-data2.js` | **扩容题库**：`ENGLISH_VOCAB` 分级词汇表 255 词 + 科学/通识/英语 ~208 道新静态题（末尾合并进 `QUESTION_BANK`） |
-| `public/static/js/data/questions.js` | 题目引擎：数学生成器 + **英语词汇生成器**（词→义/义→词/拼写辨析/单词连线/字母填空，基于 ENGLISH_VOCAB 组合出上千道题）+ 抽题入口 `drawQuestion` |
+| `public/static/js/data/questions-data3.js` | **v3.4 课程包**：牛津树/YLE 词汇并入 ENGLISH_VOCAB（去重后 374 词：g3:89/g4:101/g5:96/g6:88）+ EXT2 静态题（英语阅读24/美式通识50/科技科学32/语感鉴赏28，mergeBank 按题面全局去重）+ `window.CREATIVE_PROMPTS`×16 + `window.READ_ALOUD`×15 |
+| `public/static/js/data/questions.js` | 题目引擎：数学生成器（计算 + **LogicGen 逻辑思维11类**，选择题 60/40 分流）+ 英语词汇生成器（词→义/义→词/拼写辨析/单词连线/字母填空）+ **英语难度+1年级**（`g=min(g+1,6)`）+ `genListenChoice` 听音选词（`q.say`+`qkey='listen:'+word`，干扰项长度±1防猜）+ `drawCreative` 创作题 + 含英文引句的题自动提取 `q.say`（答案在选项中则不提取防漏答案）+ 抽题入口 `drawQuestion` |
 | `public/static/js/render/map.js` | 等距 2.5D Canvas 渲染（见 §4 约定） |
 | `public/static/js/render/assets.js` | 素材加载器：`Assets.opt(id)` 按 manifest 加载，缺失静默回退 emoji/程序绘制（不产生 404） |
-| `public/static/js/ui/panels.js` | 侧栏各面板（居民/建造/车库/市政/礼物/设置） |
-| `public/static/js/ui/quiz.js` | 答题弹窗 |
+| `public/static/js/ui/panels.js` | 侧栏各面板（居民/建造/车库/市政/礼物/**跟读**/设置）；v3.4：`renderReading` 每日跟读（TTS 慢速0.72/正常0.95、"我完成跟读啦"→pending）+ 设置内**家长区**（两位数乘法门 `parentUnlocked` 会话级解锁 → 审批跟读发奖 / 作品集最近20篇 / 学习概况）+ `badge-reading` 未完成提醒 |
+| `public/static/js/ui/quiz.js` | 答题弹窗；v3.4：`speak()` 浏览器 speechSynthesis TTS（en-US，导出 `Quiz.speak`）、`q.say` 时插 🔊 再听一遍按钮（选择/填空/判断）、听音题自动播放、`renderCreate` 创作题（textarea ≥20字解锁提交，不判对错恒奖励）、🔁巩固复习徽标（紫）与 📖错题复习（橙）区分 |
 | `tools/build-asset-manifest.mjs` | 扫描 `public/static/assets/` 生成 `manifest.json`（webp 优先于 png） |
 
 ## 4. 渲染关键约定（改渲染前必读）
@@ -77,7 +78,7 @@
 ## 7. Git / 部署状态
 
 - 仓库：https://github.com/Niklausex/Rich-sCity ，主分支 `main`（`genspark_ai_developer` 已合并，两分支同点）
-- 关键提交：`1acd980`(停车场3×3) → `6f9b627`(v3.1 经济) → `abb54a0`(美术文档全量重写) → `7a0d70f`(地面提示词去乐高化) → `fd9d4ed`(HANDOFF) → v3.2(第二批素材+题库扩容+每日50题)
+- 关键提交：`1acd980`(停车场3×3) → `6f9b627`(v3.1 经济) → `abb54a0`(美术文档) → `7a0d70f`(去乐高化) → `c235525`(v3.2 素材+题库扩容) → `69faf93`(v3.3 已掌握/错题本) → v3.4(五科课程重构+跟读+创作+遗忘曲线+家长区)
 - 推送前先调 GitHub 环境认证（Agent 环境：`setup_github_environment`）
 - 生产部署：**未做**；做之前必须让用户选部署路径
 
@@ -85,7 +86,7 @@
 
 1. **等用户交剩余美术**：装饰 6 + 大型载具 18 + 帽子 8（+可选重交：3 辆带卡通脸的车 ambulance/excavator/garbage、双向斑马线 road_crosswalk）→ 按 §5 管线接入
 2. 生产环境部署 Cloudflare Pages（先问用户选哪条部署路径）
-3. 迭代备选：题库扩到 7~12 年级、英语词汇表继续扩容（现 255 词）、地图扩张、随机事件、成就徽章、云存档(D1)、家长后台
+3. 迭代备选：题库扩到 7~12 年级、英语词汇表继续扩容（现 374 词）、跟读短文扩到 30+ 篇（现 15 篇轮播）、创作题扩容（现 16 题）、地图扩张、随机事件、成就徽章、云存档(D1)、家长区答题报告图表
 
 ## 9. 已知的坑
 
@@ -94,3 +95,6 @@
 - 每次 Bash 调用都从 `/home/user` 起步，命令要带 `cd /home/user/webapp &&`
 - README 里的沙盒预览 URL 会随沙盒重建失效，以 GetServiceUrl 实时结果为准
 - 不要给美术提示词里加任何 LEGO/凸点字眼（历史上犯过一次，已在 7a0d70f 修正）
+- TTS 用浏览器 speechSynthesis：Chrome 首次 `getVoices()` 返回空数组，quiz.js 加载时已预热一次；无网络依赖但音色随系统而异
+- 题目去重键统一走 `Game.qKey(q)`（=`q.qkey || q.q`）——新增题型若题面是通用文案必须给 `qkey`，否则会在 mastered/recent 里互相碰撞
+- 家长区解锁状态 `parentUnlocked` 是内存变量（刷新页面重新上锁），故意不落存档

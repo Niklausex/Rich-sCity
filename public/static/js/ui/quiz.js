@@ -5,6 +5,24 @@
   const overlay = document.getElementById('modal-overlay');
   const modal = document.getElementById('modal-box');
 
+  /* ---------- 英语朗读（浏览器内置 TTS，免费无需联网 API） ---------- */
+  function speak(text, rate) {
+    try {
+      if (!window.speechSynthesis) { UI.toast('这个浏览器不支持朗读', 'bad'); return; }
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-US';
+      u.rate = rate || 0.85;
+      const voices = speechSynthesis.getVoices();
+      const v = voices.find(x => /en[-_]US/i.test(x.lang) && /female|Samantha|Google US/i.test(x.name)) ||
+                voices.find(x => /en[-_]US/i.test(x.lang)) || voices.find(x => /^en/i.test(x.lang));
+      if (v) u.voice = v;
+      speechSynthesis.speak(u);
+    } catch (e) { console.warn('TTS failed', e); }
+  }
+  // 预热 voices 列表（Chrome 首次调用为空）
+  if (window.speechSynthesis) speechSynthesis.getVoices();
+
   function start(dq) {
     const r = Game.state.residents.find(x => x.id === dq.residentId);
     const q = Game.drawFor(dq);
@@ -17,7 +35,7 @@
         ${UI.portrait(r, 0.9)}
         <div>
           <div style="font-size:18px;font-weight:800">${r.name} 有问题请教市长！</div>
-          <div class="q-sub"><i class="fas ${subIcon}"></i> ${subName} · <span class="tag tag-orange" style="font-size:11px">${typeName}</span>${q.review ? ' · <span class="tag" style="font-size:11px;background:#e8590c;color:#fff">📖 错题复习</span>' : ''} · 连对 <b>${r.streak}</b> <i class="fas fa-fire" style="color:#ffcf6a"></i></div>
+          <div class="q-sub"><i class="fas ${subIcon}"></i> ${subName} · <span class="tag tag-orange" style="font-size:11px">${typeName}</span>${q.review === 'consolidate' ? ' · <span class="tag" style="font-size:11px;background:#5f3dc4;color:#fff">🔁 巩固复习</span>' : (q.review ? ' · <span class="tag" style="font-size:11px;background:#e8590c;color:#fff">📖 错题复习</span>' : '')} · 连对 <b>${r.streak}</b> <i class="fas fa-fire" style="color:#ffcf6a"></i></div>
         </div>
       </div>`;
 
@@ -25,7 +43,20 @@
     else if (q.type === 'fill') renderFill(dq, r, q, header);
     else if (q.type === 'judge') renderJudge(dq, r, q, header);
     else if (q.type === 'match') renderMatch(dq, r, q, header);
+    else if (q.type === 'create') renderCreate(dq, r, q, header);
     overlay.style.display = 'flex';
+    // 听音题：自动播放一遍
+    if (q.say && q.qkey && q.qkey.startsWith('listen:')) setTimeout(() => speak(q.say), 400);
+  }
+
+  // 题目含英语朗读内容时，插入 🔊 按钮
+  function speakBtnHtml(q) {
+    if (!q.say) return '';
+    return `<button class="btn btn-blue btn-small" id="btn-speak" style="margin:2px 0 8px"><i class="fas fa-volume-high"></i> 再听一遍</button>`;
+  }
+  function bindSpeak(q) {
+    const b = document.getElementById('btn-speak');
+    if (b) b.onclick = () => speak(q.say);
   }
 
   /* ---------- 通用结果处理 ---------- */
@@ -93,10 +124,12 @@
     const keys = ['A', 'B', 'C', 'D'];
     modal.innerHTML = `${header}<div class="quiz-body">
       <div class="quiz-q">${q.q}</div>
+      <div style="text-align:center">${speakBtnHtml(q)}</div>
       <div class="quiz-opts">
         ${q.opts.map((o, i) => `<button class="quiz-opt" data-i="${i}"><span class="opt-key">${keys[i]}</span><span>${o}</span></button>`).join('')}
       </div>${footer()}`;
     bindLater();
+    bindSpeak(q);
     let done = false;
     modal.querySelectorAll('.quiz-opt').forEach(btn => btn.onclick = () => {
       if (done) return; done = true;
@@ -115,11 +148,13 @@
   function renderFill(dq, r, q, header) {
     modal.innerHTML = `${header}<div class="quiz-body">
       <div class="quiz-q">${q.q.replace(/\n/g, '<br>')}</div>
+      <div style="text-align:center">${speakBtnHtml(q)}</div>
       <div style="display:flex;gap:10px;justify-content:center;align-items:center;margin-bottom:6px">
         <input type="${q.inputMode === 'number' ? 'tel' : 'text'}" id="fill-input" class="fill-input" placeholder="在这里输入答案" autocomplete="off">
         <button class="btn btn-green" id="fill-submit">确定</button>
       </div>${footer()}`;
     bindLater();
+    bindSpeak(q);
     const input = document.getElementById('fill-input');
     setTimeout(() => input.focus(), 250);
     let done = false;
@@ -144,11 +179,13 @@
   function renderJudge(dq, r, q, header) {
     modal.innerHTML = `${header}<div class="quiz-body">
       <div class="quiz-q">${q.q}</div>
+      <div style="text-align:center">${speakBtnHtml(q)}</div>
       <div style="display:flex;gap:14px;justify-content:center">
         <button class="quiz-opt judge-btn" data-v="true" style="flex:1;justify-content:center;font-size:20px">⭕ 对</button>
         <button class="quiz-opt judge-btn" data-v="false" style="flex:1;justify-content:center;font-size:20px">❌ 错</button>
       </div>${footer()}`;
     bindLater();
+    bindSpeak(q);
     let done = false;
     modal.querySelectorAll('.judge-btn').forEach(btn => btn.onclick = () => {
       if (done) return; done = true;
@@ -162,6 +199,62 @@
       });
       finish(dq, r, q, correct);
     });
+  }
+
+  /* ---------- 创作题：小小作家（打字自由表达，不判对错，完成就奖励） ---------- */
+  function renderCreate(dq, r, q, header) {
+    modal.innerHTML = `${header}<div class="quiz-body">
+      <div class="quiz-q">${q.q}</div>
+      <div style="background:#fff8e6;border:2px dashed #f5b942;border-radius:12px;padding:10px 14px;margin-bottom:10px;text-align:left">
+        <div style="font-size:14px;color:#8a6d1a;font-weight:700">✨ 开头提示：${q.starter || ''}</div>
+        ${q.hint ? `<div style="font-size:13px;color:#b0964f;margin-top:4px">💡 ${q.hint}</div>` : ''}
+      </div>
+      <textarea id="create-input" rows="5" placeholder="把你的想法打字写在这里（至少20个字）…"
+        style="width:100%;box-sizing:border-box;font-size:16px;font-family:inherit;padding:10px 12px;border:2.5px solid #cfd8e3;border-radius:12px;resize:vertical;outline:none;line-height:1.6"></textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+        <span id="create-count" style="font-size:12.5px;color:#999;font-weight:600">0 字</span>
+        <button class="btn btn-green" id="create-submit" disabled><i class="fas fa-paper-plane"></i> 完成创作</button>
+      </div>${footer()}`;
+    bindLater();
+    const input = document.getElementById('create-input');
+    const countEl = document.getElementById('create-count');
+    const submitBtn = document.getElementById('create-submit');
+    setTimeout(() => input.focus(), 250);
+    input.oninput = () => {
+      const len = input.value.trim().length;
+      countEl.textContent = `${len} 字${len < 20 ? `（再写 ${20 - len} 个字就可以交啦）` : ' ✔'}`;
+      submitBtn.disabled = len < 20;
+    };
+    let done = false;
+    submitBtn.onclick = () => {
+      if (done) return; done = true;
+      const text = input.value.trim();
+      input.disabled = true; submitBtn.disabled = true;
+      input.style.borderColor = '#3ab54a'; input.style.background = '#f2fbf3';
+      const result = Game.submitWriting(dq, q, text);
+      const resultEl = document.getElementById('quiz-result');
+      resultEl.innerHTML = `<span style="color:#237841">🎉 真棒的想象力！作品已收进「我的作品集」，奖励 💰${result.moneyBonus}</span>
+        <br><span style="font-size:13px;color:#888;font-weight:600">爸爸妈妈可以在设置→家长区 看到你的作品哦</span>`;
+      UI.confetti(16);
+      renderAfterActions(dq, r);
+    };
+  }
+
+  // 创作题提交后的后续按钮（复用 finish 中的逻辑）
+  function renderAfterActions(dq, r) {
+    const actions = document.getElementById('quiz-actions');
+    actions.innerHTML = '';
+    if (Game.canAsk(r.id)) {
+      const againBtn = document.createElement('button');
+      againBtn.className = 'btn btn-blue';
+      againBtn.innerHTML = `<i class="fas fa-rotate-right"></i> 再来一题（今天 ${Game.askedCount(r.id)}/${Game.DAILY_LIMIT}）`;
+      againBtn.onclick = () => { const ndq = Game.refillQuestion(r.id); if (ndq) start(ndq); else close(); };
+      actions.appendChild(againBtn);
+    }
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'btn'; closeBtn.textContent = '关闭'; closeBtn.onclick = close;
+    actions.appendChild(closeBtn);
+    UI.refreshTop();
   }
 
   /* ---------- 连线题 ---------- */
@@ -263,5 +356,5 @@
     setTimeout(redrawLines, 100);
   }
 
-  window.Quiz = { start };
+  window.Quiz = { start, speak };
 })();

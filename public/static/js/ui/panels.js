@@ -56,6 +56,9 @@
     const ug = Game.state.gifts.filter(g => !g.claimed).length;
     const bg = $('badge-gifts');
     bg.style.display = ug ? 'flex' : 'none'; bg.textContent = ug;
+    // 跟读徽章：今天还没完成（todo）时提醒
+    const br = $('badge-reading');
+    if (br) br.style.display = (!S.reading || S.reading.day !== S.day || S.reading.status === 'todo') ? 'flex' : 'none';
     CityMap.draw();
   }
 
@@ -116,7 +119,7 @@
 
   function render() {
     if (!currentPanel) return;
-    const fns = { residents: renderResidents, build: renderBuild, vehicles: renderVehicles, tax: renderTax, gifts: renderGifts, settings: renderSettings };
+    const fns = { residents: renderResidents, build: renderBuild, vehicles: renderVehicles, tax: renderTax, gifts: renderGifts, reading: renderReading, settings: renderSettings };
     (fns[currentPanel] || (() => {}))();
   }
 
@@ -365,6 +368,103 @@
     });
   }
 
+  /* ---------- 每日英语跟读面板 ---------- */
+  function renderReading() {
+    const S = Game.state;
+    panelTitle.innerHTML = '<i class="fas fa-microphone"></i> 每日英语跟读';
+    const today = Game.todayReading();
+    if (!today) { panelContent.innerHTML = '<div class="card"><div class="grow"><p>跟读短文加载失败，刷新页面试试。</p></div></div>'; return; }
+    const p = today.passage;
+    const st = today.status;
+    const statusHtml = st === 'approved'
+      ? '<span class="tag" style="background:#237841;color:#fff">✅ 今天已完成！家长已确认</span>'
+      : st === 'pending'
+        ? '<span class="tag" style="background:#e8590c;color:#fff">⏳ 等待家长确认中…（请爸爸妈妈去 设置→家长区 点通过）</span>'
+        : '<span class="tag tag-orange">🎯 今天还没完成跟读哦</span>';
+    panelContent.innerHTML = `
+      <div class="card" style="background:#eef6ff"><div class="grow">
+        <h4>📖 今日短文：${p.title}</h4>
+        <p style="margin-top:4px">① 点“听一听”认真听 ② 跟着大声读出来（可以多听几遍） ③ 读给爸爸妈妈听，完成后点下面的按钮</p>
+        <div style="margin-top:6px">${statusHtml}</div>
+      </div></div>
+      <div class="card"><div class="grow">
+        <div style="font-size:17px;line-height:2;font-weight:600;color:#1d3557" id="read-text">${p.text}</div>
+        <div style="font-size:13px;color:#999;margin-top:8px;line-height:1.7">🇨🇳 ${p.cn}</div>
+        <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn btn-blue" id="btn-read-play"><i class="fas fa-volume-high"></i> 听一听（慢速）</button>
+          <button class="btn btn-blue btn-small" id="btn-read-play2"><i class="fas fa-volume-high"></i> 正常速度</button>
+          ${st === 'todo' ? '<button class="btn btn-green" id="btn-read-done"><i class="fas fa-check"></i> 我完成跟读啦！</button>' : ''}
+        </div>
+      </div></div>
+      <div class="card" style="background:#fff8e0"><div class="grow">
+        <h4>🎁 奖励规则</h4>
+        <p>每天 1 篇跟读，家长确认后奖励 <b>💰 20 元 + 😊 快乐值 +5</b>！坦白完成，诚实的小市长才是好市长～</p>
+      </div></div>`;
+    $('btn-read-play').onclick = () => Quiz.speak(p.text, 0.72);
+    $('btn-read-play2').onclick = () => Quiz.speak(p.text, 0.95);
+    const doneBtn = $('btn-read-done');
+    if (doneBtn) doneBtn.onclick = () => {
+      if (Game.markReadingDone()) {
+        toast('🎉 真棒！去请爸爸妈妈确认吧（设置→家长区）', 'gold');
+        confetti(15);
+        renderReading();
+        refreshTop();
+      }
+    };
+  }
+
+  /* ---------- 家长区：两位数乘法门（孩子不易算对，家长秒算） ---------- */
+  let parentUnlocked = false;
+  function parentGateHtml() {
+    const a = 12 + Math.floor(Math.random() * 78), b = 12 + Math.floor(Math.random() * 78);
+    return { html: `
+      <div class="card" style="background:#f4f0fa"><div class="grow">
+        <h4>🔐 家长区（需要爸爸妈妈解锁）</h4>
+        <p>请家长回答：<b style="font-size:17px">${a} × ${b} = ?</b></p>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input type="tel" id="inp-parent-gate" placeholder="输入答案" style="flex:1">
+          <button class="btn btn-blue btn-small" id="btn-parent-gate">解锁</button>
+        </div>
+      </div></div>`, answer: a * b };
+  }
+
+  function parentAreaHtml() {
+    const S = Game.state;
+    const reading = S.reading;
+    const RA = window.READ_ALOUD || [];
+    let readCard;
+    if (reading && reading.day === S.day && reading.status === 'pending') {
+      const p = RA[reading.idx % RA.length] || { title: '' };
+      readCard = `<div class="card" style="background:#fff3e6"><div class="grow">
+        <h4>🎙️ 待确认跟读：《${p.title}》</h4>
+        <p>孩子说已完成今天的跟读。请听孩子读一遍，确认后点通过（奖励 20 元 + 快乐值 5）</p>
+        <button class="btn btn-green btn-small" id="btn-approve-reading" style="margin-top:8px"><i class="fas fa-check"></i> 确认通过，发奖励</button>
+      </div></div>`;
+    } else if (reading && reading.day === S.day && reading.status === 'approved') {
+      readCard = `<div class="card"><div class="grow"><h4>🎙️ 今日跟读</h4><p>✅ 今天的跟读已确认完成！</p></div></div>`;
+    } else {
+      readCard = `<div class="card"><div class="grow"><h4>🎙️ 今日跟读</h4><p>孩子还没点“我完成跟读啦”，暂无待确认项。</p></div></div>`;
+    }
+    const ws = (S.writings || []).slice().reverse().slice(0, 20);
+    const writingsHtml = ws.length
+      ? ws.map(w => `<div style="background:#fbfaf6;border:1.5px solid #e8e2d0;border-radius:10px;padding:8px 12px;margin-top:8px">
+          <div style="font-weight:800;font-size:14px">📝 《${w.title}》<span style="font-weight:600;color:#999;font-size:12px"> · 第${w.day}天</span></div>
+          <div style="font-size:14px;line-height:1.7;margin-top:4px;white-space:pre-wrap">${w.text.replace(/</g, '&lt;')}</div>
+        </div>`).join('')
+      : '<p style="color:#999">还没有创作作品。语文题里会随机出现“小小作家”创作题（每天最多2道）。</p>';
+    const stats = S.stats || {};
+    return `${readCard}
+      <div class="card"><div class="grow">
+        <h4>📚 学习概况</h4>
+        <p>累计答题 <b>${stats.totalAnswered || 0}</b> 道 · 答对 <b>${stats.totalRight || 0}</b> 道 · 正确率 <b>${stats.totalAnswered ? Math.round(stats.totalRight / stats.totalAnswered * 100) : 0}%</b><br>
+        待复习错题 <b>${(S.wrongPool || []).length}</b> 道 · 已掌握 <b>${(S.mastered || []).length}</b> 道 · 巩固队列 <b>${(S.reviewQueue || []).length}</b> 道</p>
+      </div></div>
+      <div class="card"><div class="grow">
+        <h4>✨ 孩子的作品集（最近20篇）</h4>
+        ${writingsHtml}
+      </div></div>`;
+  }
+
   /* ---------- 设置面板 ---------- */
   function renderSettings() {
     const S = Game.state;
@@ -388,6 +488,7 @@
         <p>游戏自动保存在这台电脑的浏览器里。换电脑玩会重新开始哦。</p>
         <button class="btn btn-red btn-small" id="btn-reset" style="margin-top:8px"><i class="fas fa-trash"></i> 重新开始游戏</button>
       </div></div>
+      <div class="card" id="parent-area-slot"></div>
       <div class="card"><div class="grow">
         <h4>ℹ️ 关于 Rich's City</h4>
         <p>版本 1.0 · 一款为小市长打造的乐高风格学习城市游戏<br>答题赚钱 → 建造城市 → 提升周收入解锁新建筑 → 解锁车辆，努力建成超级城市吧！</p>
@@ -401,6 +502,38 @@
     $('btn-reset').onclick = () => {
       if (confirm('确定要删除存档、重新开始吗？所有进度都会消失！')) Game.resetGame();
     };
+    // 家长区：默认锁住，两位数乘法验证
+    const slot = $('parent-area-slot');
+    function mountParentArea() {
+      slot.outerHTML = `<div id="parent-area-wrap">${parentAreaHtml()}</div>`;
+      const ab = $('btn-approve-reading');
+      if (ab) ab.onclick = () => {
+        const res = Game.approveReading();
+        if (res.ok) {
+          toast(`✅ 已确认！奖励 ${res.reward} 元已发放`, 'gold');
+          confetti(20);
+          refreshTop();
+          const wrap = $('parent-area-wrap');
+          wrap.innerHTML = parentAreaHtml();
+        }
+      };
+    }
+    if (parentUnlocked) {
+      mountParentArea();
+    } else {
+      const gate = parentGateHtml();
+      slot.outerHTML = gate.html.trim();
+      $('btn-parent-gate').onclick = () => {
+        if (parseInt($('inp-parent-gate').value, 10) === gate.answer) {
+          parentUnlocked = true;
+          toast('🔓 家长区已解锁');
+          renderSettings();
+        } else {
+          toast('答案不对哦，再算算～', 'bad');
+        }
+      };
+      $('inp-parent-gate').onkeydown = (e) => { if (e.key === 'Enter') $('btn-parent-gate').click(); };
+    }
   }
 
   /* ---------- 建筑点击菜单 ---------- */

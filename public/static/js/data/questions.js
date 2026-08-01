@@ -56,6 +56,34 @@
   };
   for (let g = 7; g <= 12; g++) MathGen[g] = MathGen[6];
 
+  /* ============ 数学：逻辑思维生成器（找规律/推理/经典问题） ============ */
+  const NAMES3 = ['小明', '小红', '小刚', '小芳', '小强', '小美'];
+  const LogicGen = {
+    seqAdd(g) { const a = RR(2, 15), d = RR(2, g * 2); const s = [a, a + d, a + 2 * d, a + 3 * d]; const ans = a + 4 * d; return mkChoice(`找规律：${s.join('， ')}，( ? )`, ans, `每次都加 ${d}：${s[3]} + ${d} = ${ans}。找规律先看相邻两数的差。`, () => ans + (R(2) ? RR(1, d) : -RR(1, d))); },
+    seqMul(g) { const a = RR(1, 3), k = g >= 5 ? 3 : 2; const s = [a, a * k, a * k * k, a * k * k * k]; const ans = s[3] * k; return mkChoice(`找规律：${s.join('， ')}，( ? )`, ans, `每次都乘 ${k}：${s[3]} × ${k} = ${ans}。`, () => ans + (R(2) ? RR(2, 10) : -RR(2, 10))); },
+    seqSquare() { const n = RR(2, 6); const s = [n * n, (n + 1) * (n + 1), (n + 2) * (n + 2), (n + 3) * (n + 3)]; const ans = (n + 4) * (n + 4); return mkChoice(`找规律：${s.join('， ')}，( ? )`, ans, `这些都是平方数：${n}²、${n + 1}²……下一个是 ${n + 4}² = ${ans}。`, () => ans + (R(2) ? RR(2, 12) : -RR(2, 12))); },
+    emojiPattern() { const pool = [['🍎', '🍌'], ['⭐', '🌙'], ['🔴', '🔵'], ['🐱', '🐶']][R(4)]; const pat = [pool[0], pool[1], pool[0], pool[1], pool[0]]; const q = { type: 'choice', q: `找规律：${pat.join(' ')} ( ? )`, opts: shuffle([pool[1], pool[0], '🌟', '🎈']), a: 0, tip: `规律是 ${pool[0]}${pool[1]} 交替出现，下一个是 ${pool[1]}。` }; q.a = q.opts.indexOf(pool[1]); return q; },
+    compare() { const [A, B, C] = shuffle(NAMES3).slice(0, 3); const attr = [['高', '最高'], ['跑得快', '最快'], ['年龄大', '最大']][R(3)]; const q = { type: 'choice', q: `${A}比${B}${attr[0]}，${B}比${C}${attr[0]}。谁${attr[1]}？`, opts: shuffle([A, B, C, '无法确定']), a: 0, tip: `${A} > ${B} > ${C}，所以${A}${attr[1]}。画个箭头图就一目了然。` }; q.a = q.opts.indexOf(A); return q; },
+    cycle() { const items = [['红', '黄', '蓝'], ['△', '○', '□'], ['猫', '狗', '兔']][R(3)]; const n = RR(10, 30); const ans = items[(n - 1) % 3]; return { type: 'choice', q: `按“${items.join('、')}”重复排列，第 ${n} 个是什么？`, opts: shuffle([...items, '都不是']).slice(0, 4).includes(ans) ? shuffle([...items, '都不是']) : [ans, ...items.filter(x => x !== ans), '都不是'], a: 0, tip: `3个一组循环：${n} ÷ 3 余 ${n % 3}，余${n % 3 || 3}对应“${ans}”。`, _fix: ans }; },
+    chickenRabbit() { const c = RR(2, 6), r = RR(2, 6); const heads = c + r, legs = c * 2 + r * 4; return mkChoice(`笼子里有鸡和兔，共 ${heads} 个头、${legs} 条腿。鸡有几只？`, c, `假设全是鸡：${heads}×2=${heads * 2}条腿，多出 ${legs - heads * 2} 条，每只兔多2条 → 兔=${r}只，鸡=${c}只。`, () => c + (R(2) ? 1 : -1) * RR(1, 3)); },
+    age() { const kid = RR(6, 12), mult = RR(3, 5); const dad = kid * mult; return mkChoice(`爸爸今年 ${dad} 岁，正好是小明年龄的 ${mult} 倍。小明今年几岁？`, kid, `${dad} ÷ ${mult} = ${kid}（岁）。倒过来想：倍数关系用除法。`, () => kid + (R(2) ? RR(1, 3) : -RR(1, 3))); },
+    tree() { const gap = [4, 5, 8, 10][R(4)], n = RR(4, 9); const len = gap * n; const ans = n + 1; return mkChoice(`${len} 米长的小路一侧每 ${gap} 米种一棵树（两端都种），一共种几棵？`, ans, `间隔数 = ${len}÷${gap} = ${n}，两端都种要 +1，共 ${ans} 棵。植树问题记住：棵数=间隔+1。`, () => ans + (R(2) ? 1 : -1)); },
+    sumDiff() { const small = RR(5, 20), diff = RR(2, 10) * 2; const big = small + diff, sum = small + big; return mkChoice(`两个数的和是 ${sum}，差是 ${diff}，较大的数是几？`, big, `大数 = (和+差)÷2 = (${sum}+${diff})÷2 = ${big}。`, () => big + (R(2) ? RR(1, 4) : -RR(1, 4))); },
+    logic3() { const [A, B, C] = shuffle(NAMES3).slice(0, 3); const pets = shuffle(['猫', '狗', '兔']); const q = { type: 'choice', q: `${A}、${B}、${C}各养了猫、狗、兔中的一种。${A}不养猫，${B}不养猫也不养狗。${C}养的是？`, opts: shuffle(['猫', '狗', '兔', '鱼']), a: 0, tip: `${B}只能养兔；${A}不养猫只剩狗；所以${C}养猫。排除法！` }; q.a = q.opts.indexOf('猫'); return q; }
+  };
+  const LOGIC_BY_GRADE = {
+    3: ['seqAdd', 'seqMul', 'emojiPattern', 'compare', 'cycle'],
+    4: ['seqAdd', 'seqMul', 'compare', 'cycle', 'chickenRabbit', 'age', 'tree', 'logic3'],
+    5: ['seqAdd', 'seqMul', 'seqSquare', 'chickenRabbit', 'age', 'tree', 'sumDiff', 'logic3'],
+    6: ['seqMul', 'seqSquare', 'chickenRabbit', 'tree', 'sumDiff', 'logic3']
+  };
+  function genLogic(g) {
+    const keys = LOGIC_BY_GRADE[g] || LOGIC_BY_GRADE[3];
+    const q = LogicGen[keys[R(keys.length)]](g);
+    if (q._fix) { q.a = q.opts.indexOf(q._fix); delete q._fix; }
+    return q;
+  }
+
   /* ============ 数学：填空题生成器 ============ */
   const MathFillGen = {
     3: [
@@ -274,6 +302,45 @@
     return null;
   }
 
+  // 听音选词：🔊播放单词，选出听到的词（q.say = 要朗读的内容）
+  function genListenChoice(grade, recent) {
+    const list = vocabFor(grade);
+    if (list.length < 4) return null;
+    for (let t = 0; t < 6; t++) {
+      const [word, cn] = list[R(list.length)];
+      const key = 'listen:' + word;
+      if (recent && recent.includes(key)) continue;
+      // 干扰项优先选长度相近的词（±1字母），必要时用拼写变形，避免孩子靠字母数猜答案
+      const near = shuffle(list.filter(p => p[0] !== word && Math.abs(p[0].length - word.length) <= 1)).map(p => p[0]);
+      const distractors = [];
+      const seen = new Set([word]);
+      for (const w of near) { if (distractors.length >= 3) break; if (!seen.has(w)) { distractors.push(w); seen.add(w); } }
+      while (distractors.length < 3) {
+        const m = misspell(word);
+        if (!seen.has(m)) { distractors.push(m); seen.add(m); }
+      }
+      const opts = shuffle([word].concat(distractors));
+      const q = `🔊 听一听，选出你听到的单词（点小喇叭可以重听）`;
+      return { type: 'choice', q, qkey: key, say: word, opts, a: opts.indexOf(word), tip: `你听到的是 ${word}（${cn}）。` };
+    }
+    return null;
+  }
+
+  // 语文创作题：给开头自由续写，不判对错
+  function drawCreative(recent) {
+    const P = window.CREATIVE_PROMPTS || [];
+    if (!P.length) return null;
+    const fresh = P.filter(p => !recent.includes('create:' + p.title));
+    const item = (fresh.length ? fresh : P)[R((fresh.length ? fresh : P).length)];
+    return {
+      type: 'create', subject: 'chinese',
+      q: `✨ 小小作家时间：《${item.title}》`,
+      qkey: 'create:' + item.title,
+      starter: item.starter, hint: item.hint,
+      tip: '想象力没有标准答案，写得开心最重要！'
+    };
+  }
+
   function genVocabMatch(grade) {
     const list = vocabFor(grade);
     if (list.length < 4) return null;
@@ -316,7 +383,7 @@
   const SUBJECTS = ['math', 'chinese', 'english', 'science', 'general'];
   const SUBJECT_NAMES = { math: '数学', chinese: '语文', english: '英语', science: '科学', general: '通识' };
   const SUBJECT_ICONS = { math: 'fa-calculator', chinese: 'fa-book', english: 'fa-language', science: 'fa-flask', general: 'fa-earth-asia' };
-  const TYPE_NAMES = { choice: '选择题', fill: '填空题', match: '连线题', judge: '判断题' };
+  const TYPE_NAMES = { choice: '选择题', fill: '填空题', match: '连线题', judge: '判断题', create: '创作题' };
 
   function bankFor(subject, grade) {
     const bank = window.QUESTION_BANK[subject];
@@ -341,7 +408,16 @@
   function drawQuestion(subject, grade, recent) {
     recent = recent || [];
     if (!subject) subject = SUBJECTS[R(SUBJECTS.length)];
-    const g = MathGen[grade] ? grade : 3;
+    let g = MathGen[grade] ? grade : 3;
+    // 英语难度+1档（ORT/YLE 定位：三年级孩子用四年级 Movers 核心词，稍难一点）
+    if (subject === 'english') g = Math.min(g + 1, 6);
+
+    // 英语：20% 听音选词（需浏览器支持 TTS，由 UI 层播放 q.say）
+    if (subject === 'english' && Math.random() < 0.2) {
+      const lq = genListenChoice(g, recent);
+      if (lq) { lq.subject = subject; return lq; }
+    }
+    // 语文：创作题由 game.js 层控制频率后调用 drawCreative()，不在这里抽
 
     // 题型概率：选择50% / 填空20% / 连线20% / 判断10%
     const roll = Math.random();
@@ -385,9 +461,13 @@
     // —— 选择题（默认/回退） ——
     if (!q) {
       if (subject === 'math') {
-        const gens = MathGen[g];
+        // 逻辑思维 60% / 计算基础 40%
+        const useLogic = Math.random() < 0.6;
         let guard = 0;
-        do { q = gens[R(gens.length)](); guard++; } while (recent.includes(q.q) && guard < 25);
+        do {
+          q = useLogic ? genLogic(g) : MathGen[g][R(MathGen[g].length)]();
+          guard++;
+        } while (recent.includes(q.q) && guard < 25);
       } else {
         // 英语：60% 用词表生成器（可产出上千道不重复题），其余走静态题库
         if (subject === 'english' && Math.random() < 0.6) {
@@ -404,8 +484,13 @@
       }
     }
     q.subject = subject;
+    // 英语题自动提取可朗读的英文（给 UI 的 🔊 按钮用），不泄题：仅当引号内是英文且不是待选答案时
+    if (subject === 'english' && !q.say && q.type !== 'match') {
+      const m = q.q.match(/["“]([A-Za-z][A-Za-z .,'!?]{1,80})["”]/);
+      if (m && !(q.opts && q.opts.includes(m[1]))) q.say = m[1];
+    }
     return q;
   }
 
-  window.Questions = { drawQuestion, SUBJECTS, SUBJECT_NAMES, SUBJECT_ICONS, TYPE_NAMES };
+  window.Questions = { drawQuestion, drawCreative, SUBJECTS, SUBJECT_NAMES, SUBJECT_ICONS, TYPE_NAMES };
 })();

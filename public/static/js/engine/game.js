@@ -127,6 +127,10 @@
         subject: this.rollSubject(),
         done: false
       }));
+      // 创作题每日计数清零；刷新今日跟读短文
+      S.createdToday = 0;
+      const RA = window.READ_ALOUD || [];
+      if (RA.length) S.reading = { idx: (S.day - 1) % RA.length, day: S.day, status: 'todo' };
     },
     askedCount(rid) { return (S.askedToday && S.askedToday[rid]) || 0; },
     canAsk(rid) { return this.askedCount(rid) < this.DAILY_LIMIT; },
@@ -140,18 +144,37 @@
 
     pendingQuestions() { return S.dailyQuestions.filter(q => !q.done && this.canAsk(q.residentId)); },
 
+    // 题目去重键：听音题/创作题等题干相同的题用 qkey 区分
+    qKey(q) { return q.qkey || q.q; },
+
     // 抽取某居民今天的题
     drawFor(dq) {
-      // 30% 概率优先复习错题（今天还没出过的）
+      // ① 30% 概率优先复习错题（今天还没出过的）
       if (S.wrongPool && S.wrongPool.length && Math.random() < 0.3) {
-        const fresh = S.wrongPool.filter(w => !S.recentQuestions.includes(w.q));
+        const fresh = S.wrongPool.filter(w => !S.recentQuestions.includes(this.qKey(w)));
         if (fresh.length) {
           const q = this.reshuffleQuestion(fresh[Math.floor(Math.random() * fresh.length)]);
           q.review = true;   // 标记为错题复习，UI 显示徽标
           return q;
         }
       }
-      // 新题：排除最近出过的 + 已掌握的
+      // ② 20% 概率遗忘曲线巩固：答对满 7 天的题再考一次
+      if (S.reviewQueue && S.reviewQueue.length && Math.random() < 0.2) {
+        const due = S.reviewQueue.filter(it => S.day - it.day >= 7 && !S.recentQuestions.includes(it.key));
+        if (due.length) {
+          const it = due[Math.floor(Math.random() * due.length)];
+          const q = this.reshuffleQuestion(it.snap);
+          q.review = 'consolidate';   // 巩固复习徽标
+          return q;
+        }
+      }
+      // ③ 语文科目：一定概率出“小小作家”创作题（每天最多 2 道）
+      if (dq.subject === 'chinese' && (S.createdToday || 0) < 2 && Math.random() < 0.35 && Questions.drawCreative) {
+        const exclude = S.recentQuestions.concat(S.mastered || []);
+        const cq = Questions.drawCreative(exclude);
+        if (cq) return cq;
+      }
+      // ④ 新题：排除最近出过的 + 已掌握的
       const exclude = S.recentQuestions.concat(S.mastered || []);
       const q = Questions.drawQuestion(dq.subject, S.grade, exclude);
       return q;
@@ -183,25 +206,44 @@
       if (!S.askedToday) S.askedToday = {};
       S.askedToday[r.id] = (S.askedToday[r.id] || 0) + 1;
       S.stats.totalAnswered++;
+      const key = this.qKey(question);
       // 记录防重复（扩大到300条，适配高频答题）
-      S.recentQuestions.push(question.q);
+      S.recentQuestions.push(key);
       if (S.recentQuestions.length > 300) S.recentQuestions.shift();
-      // 已掌握/错题本维护
+      // 已掌握/错题本/巩固队列维护
       if (!S.mastered) S.mastered = [];
       if (!S.wrongPool) S.wrongPool = [];
+      if (!S.reviewQueue) S.reviewQueue = [];
       if (correct) {
-        // 答对 → 永久不再出现；若是错题复习答对 → 移出错题本
+        // 答对 → 不再作为新题出现；若是错题复习答对 → 移出错题本
         // （连线题题面固定但内容每次不同，不进已掌握名单）
-        if (question.type !== 'match' && !S.mastered.includes(question.q)) S.mastered.push(question.q);
+        if (question.type !== 'match' && question.type !== 'create' && !S.mastered.includes(key)) S.mastered.push(key);
         if (S.mastered.length > 5000) S.mastered.shift();
-        S.wrongPool = S.wrongPool.filter(w => !(w.q === question.q && JSON.stringify(w.left || null) === JSON.stringify(question.left || null)));
+        S.wrongPool = S.wrongPool.filter(w => !(this.qKey(w) === key && JSON.stringify(w.left || null) === JSON.stringify(question.left || null)));
+        if (question.review === 'consolidate') {
+          // 巩固复习也答对 → 真正掌握，移出巩固队列
+          S.reviewQueue = S.reviewQueue.filter(it => it.key !== key);
+        } else if (!question.review && question.type !== 'match' && question.type !== 'create') {
+          // 首次答对 → 进遗忘曲线巩固队列，7 天后再考一次
+          if (!S.reviewQueue.some(it => it.key === key)) {
+            const snap = JSON.parse(JSON.stringify(question));
+            delete snap.review;
+            S.reviewQueue.push({ key, day: S.day, snap });
+            if (S.reviewQueue.length > 500) S.reviewQueue.shift();
+          }
+        }
       } else {
         // 答错 → 存进错题本（去重），后续会重新出现直到答对
-        if (!S.wrongPool.some(w => w.q === question.q)) {
+        if (!S.wrongPool.some(w => this.qKey(w) === key)) {
           const snap = JSON.parse(JSON.stringify(question));
           delete snap.review;
           S.wrongPool.push(snap);
           if (S.wrongPool.length > 200) S.wrongPool.shift();
+        }
+        if (question.review === 'consolidate') {
+          // 巩固复习答错 → 说明忘了，从已掌握中移除，重新学习
+          S.mastered = S.mastered.filter(m => m !== key);
+          S.reviewQueue = S.reviewQueue.filter(it => it.key !== key);
         }
       }
 
@@ -244,6 +286,49 @@
       }
       this.save();
       return result;
+    },
+
+    /* ---------- 创作题：提交作品（总是奖励，鼓励表达） ---------- */
+    submitWriting(dq, question, text) {
+      S.createdToday = (S.createdToday || 0) + 1;
+      S.writings.push({
+        title: (question.qkey || '').replace(/^create:/, '') || question.q,
+        text: String(text).slice(0, 2000),
+        day: S.day, ts: Date.now()
+      });
+      if (S.writings.length > 200) S.writings.shift();
+      this.pushLog(`小小作家完成了一篇创作！`);
+      return this.answer(dq, question, true);
+    },
+
+    /* ---------- 每日英语跟读 ---------- */
+    todayReading() {
+      const RA = window.READ_ALOUD || [];
+      if (!RA.length) return null;
+      if (!S.reading || S.reading.day !== S.day) {
+        S.reading = { idx: (S.day - 1) % RA.length, day: S.day, status: 'todo' };
+        this.save();
+      }
+      return { passage: RA[S.reading.idx % RA.length], status: S.reading.status };
+    },
+    // 孩子点“我完成跟读啦”→ 等待家长审批
+    markReadingDone() {
+      if (!S.reading || S.reading.day !== S.day || S.reading.status !== 'todo') return false;
+      S.reading.status = 'pending';
+      this.pushLog('完成了今天的英语跟读，等家长确认中…');
+      this.save();
+      return true;
+    },
+    // 家长在后台通过 → 发奖励
+    approveReading() {
+      if (!S.reading || S.reading.status !== 'pending') return { ok: false, msg: '没有待审批的跟读' };
+      S.reading.status = 'approved';
+      const reward = 20;
+      S.money += reward;
+      S.joy = Math.min(100, S.joy + 5);
+      this.pushLog(`家长确认跟读完成！奖励 ${reward} 元 + 快乐值 +5`);
+      this.save();
+      return { ok: true, reward };
     },
 
     /* ---------- 睡觉/新的一天 ---------- */

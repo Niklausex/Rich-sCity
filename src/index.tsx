@@ -64,6 +64,7 @@ app.get('/', (c) => {
     <button class="side-btn" data-panel="vehicles" title="车库"><i class="fas fa-car-side"></i><span>车库</span></button>
     <button class="side-btn" data-panel="tax" title="市政厅"><i class="fas fa-landmark"></i><span>市政</span><em id="badge-tax" class="badge" style="display:none">!</em></button>
     <button class="side-btn" data-panel="gifts" title="礼物"><i class="fas fa-gift"></i><span>礼物</span><em id="badge-gifts" class="badge" style="display:none">0</em></button>
+    <button class="side-btn" data-panel="reading" title="每日跟读"><i class="fas fa-microphone"></i><span>跟读</span><em id="badge-reading" class="badge" style="display:none">!</em></button>
     <button class="side-btn" data-panel="settings" title="设置"><i class="fas fa-gear"></i><span>设置</span></button>
   </nav>
 
@@ -101,6 +102,7 @@ app.get('/', (c) => {
 
 <script src="/static/js/data/questions-data.js"></script>
 <script src="/static/js/data/questions-data2.js"></script>
+<script src="/static/js/data/questions-data3.js"></script>
 <script src="/static/js/data/questions.js"></script>
 <script src="/static/js/data/catalog.js"></script>
 <script src="/static/js/engine/state.js"></script>
