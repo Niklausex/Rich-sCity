@@ -1,7 +1,8 @@
 # 技术交接文档（Agent Handoff）
 
 > 目的：任何新接手的 Agent / 开发者，只读本文档 + README 即可完整理解项目现状、关键约定与待办。
-> 最后更新：2026-08-01（main @ 7a0d70f）
+> 最后更新：2026-08-01（main @ 0d0490a，v3.4）
+> ⚠️ **文档更新规约（对所有 Agent 强制）**：每次功能变更后，必须同步更新 ①本文档（模块地图/版本演进/待办/坑）②README（功能清单/数据架构/最后更新行）③本头部的提交号。这是用户明确要求，目的是任何模型可无缝接手。
 
 ---
 
@@ -88,7 +89,29 @@
 2. 生产环境部署 Cloudflare Pages（先问用户选哪条部署路径）
 3. 迭代备选：题库扩到 7~12 年级、英语词汇表继续扩容（现 374 词）、跟读短文扩到 30+ 篇（现 15 篇轮播）、创作题扩容（现 16 题）、地图扩张、随机事件、成就徽章、云存档(D1)、家长区答题报告图表
 
-## 9. 已知的坑
+## 9. 版本演进史（每次更新必须追加一行）
+
+| 版本 | 提交 | 内容摘要 |
+|---|---|---|
+| v3.0 | — | 美术贴图版：52张自制素材接入，等距2.5D渲染管线 |
+| v3.1 | `6f9b627` | 经济系统：解锁改按每周收入 peakIncome，17档；招募关闭固定8家人 |
+| v3.2 | `c235525` | 第二批素材33张（共86）；英语词汇生成器+科学/通识扩容；每居民每日50题+科目权重 |
+| v3.3 | `69faf93` | 学习闭环：mastered 答对永久排除 + wrongPool 错题本30%复习直到答对；抽题防泄漏修复 |
+| v3.4 | `0d0490a` | **五科课程重构**：牛津树英语+1年级/听音选词TTS/ORT阅读；每日跟读+家长审批(20元+快乐5)；语文创作题(打字≥20字恒奖励)；数学逻辑思维11类(60/40)；美式通识50题；科技科学32题；遗忘曲线巩固复习(7天/20%)；设置内家长区(乘法门/作品集/学习概况)；qkey 去重体系 |
+
+## 10. 测试（tests/e2e/，playwright-core 无头浏览器）
+
+```bash
+cd /home/user/webapp && npm run build && pm2 restart webapp   # 先构建重启
+cd /home/user/webapp/tests/e2e && node v34test.mjs   # 逻辑回归：18项检查（跟读状态机/创作保存/遗忘曲线/1500抽泄漏=0）
+node v34ui.mjs                                        # UI 回归：跟读面板/家长门/创作题渲染/听音🔊按钮 + 截图
+node mastertest.mjs                                   # v3.3 学习闭环专项
+```
+- 依赖 `playwright-core`：不在 webapp/node_modules 里，靠 Node 向上解析到 `/home/user/node_modules`（沙盒重建后若缺失：`cd /home/user && npm i playwright-core`）
+- 脚本内测试完会 `localStorage.clear()` 或注入状态，**不要对着用户正在玩的存档跑**
+- 若 playwright 报 `modal-overlay intercepts pointer events`：开局欢迎弹窗/面板遮罩挡点击，先 `evaluate` 关掉再点
+
+## 11. 已知的坑
 
 - `Assets.opt()` 只加载 manifest.json 里登记过的 ID——新素材放了文件但没跑 `assets:index` + build 就不会生效
 - `wrangler.jsonc` 改动后需 `rm -rf .wrangler && npm run build`
