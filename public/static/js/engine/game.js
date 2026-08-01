@@ -109,18 +109,36 @@
     },
 
     /* ---------- 每日问题 ---------- */
+    DAILY_LIMIT: 50,   // 每位居民每天最多提问 50 道
+    // 科目权重：偏向 英语/科学/通识
+    SUBJECT_WEIGHTS: { english: 30, science: 25, general: 25, math: 12, chinese: 8 },
+    rollSubject() {
+      const W = this.SUBJECT_WEIGHTS;
+      const total = Object.values(W).reduce((a, b) => a + b, 0);
+      let r = Math.random() * total;
+      for (const [s, w] of Object.entries(W)) { r -= w; if (r < 0) return s; }
+      return 'english';
+    },
     newDayQuestions() {
-      // 每天随机3~5位居民有问题找市长
-      const count = Math.min(S.residents.length, 3 + Math.floor(Math.random() * 3));
-      const picked = [...S.residents].sort(() => Math.random() - 0.5).slice(0, count);
-      S.dailyQuestions = picked.map(r => ({
+      // 每天每位居民都可以提问，上限 DAILY_LIMIT 道；初始先挂一道
+      S.askedToday = {};                       // {residentId: 今日已答题数}
+      S.dailyQuestions = S.residents.map(r => ({
         residentId: r.id,
-        subject: Questions.SUBJECTS[Math.floor(Math.random() * Questions.SUBJECTS.length)],
+        subject: this.rollSubject(),
         done: false
       }));
     },
+    askedCount(rid) { return (S.askedToday && S.askedToday[rid]) || 0; },
+    canAsk(rid) { return this.askedCount(rid) < this.DAILY_LIMIT; },
+    // 答完一题后，若未达上限继续给该居民挂新问题
+    refillQuestion(rid) {
+      if (!this.canAsk(rid)) return null;
+      const dq = { residentId: rid, subject: this.rollSubject(), done: false };
+      S.dailyQuestions.push(dq);
+      return dq;
+    },
 
-    pendingQuestions() { return S.dailyQuestions.filter(q => !q.done); },
+    pendingQuestions() { return S.dailyQuestions.filter(q => !q.done && this.canAsk(q.residentId)); },
 
     // 抽取某居民今天的题
     drawFor(dq) {
@@ -132,10 +150,12 @@
     answer(dq, question, correct) {
       const r = S.residents.find(x => x.id === dq.residentId);
       dq.done = true;
+      if (!S.askedToday) S.askedToday = {};
+      S.askedToday[r.id] = (S.askedToday[r.id] || 0) + 1;
       S.stats.totalAnswered++;
-      // 记录防重复（最多50条）
+      // 记录防重复（扩大到300条，适配高频答题）
       S.recentQuestions.push(question.q);
-      if (S.recentQuestions.length > 50) S.recentQuestions.shift();
+      if (S.recentQuestions.length > 300) S.recentQuestions.shift();
 
       const result = { correct, leveledUp: false, gift: null, joyDelta: 0, moneyBonus: 0 };
       if (correct) {

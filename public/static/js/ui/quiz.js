@@ -53,18 +53,27 @@
     }
 
     actions.innerHTML = '';
-    const remaining = Game.pendingQuestions();
+    // 同一居民继续提问（每日上限50道）
+    if (Game.canAsk(r.id)) {
+      const againBtn = document.createElement('button');
+      againBtn.className = 'btn btn-blue';
+      againBtn.innerHTML = `<i class="fas fa-rotate-right"></i> 再来一题（今天 ${Game.askedCount(r.id)}/${Game.DAILY_LIMIT}）`;
+      againBtn.onclick = () => { const ndq = Game.refillQuestion(r.id); if (ndq) start(ndq); else close(); };
+      actions.appendChild(againBtn);
+    }
+    const remaining = Game.pendingQuestions().filter(x => x.residentId !== r.id);
     const nextBtn = document.createElement('button');
     if (remaining.length) {
-      nextBtn.className = 'btn btn-blue';
-      nextBtn.innerHTML = `<i class="fas fa-forward"></i> 下一位居民（还有${remaining.length}人）`;
+      nextBtn.className = 'btn btn-green';
+      nextBtn.innerHTML = `<i class="fas fa-forward"></i> 换一位居民（还有${remaining.length}人等着）`;
       nextBtn.onclick = () => start(remaining[0]);
-    } else {
+      actions.appendChild(nextBtn);
+    } else if (!Game.canAsk(r.id)) {
       nextBtn.className = 'btn btn-green';
       nextBtn.innerHTML = '✅ 今天的问题都答完啦';
       nextBtn.onclick = close;
+      actions.appendChild(nextBtn);
     }
-    actions.appendChild(nextBtn);
     const closeBtn = document.createElement('button');
     closeBtn.className = 'btn'; closeBtn.textContent = '关闭'; closeBtn.onclick = close;
     actions.appendChild(closeBtn);

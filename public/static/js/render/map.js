@@ -277,14 +277,18 @@
   /* ---------- 建筑贴图渲染（美术资产） ---------- */
   function drawBuildingSprite(b, im, pB2, pC, pD, selected) {
     // 贴图宽度对齐等距占地菱形宽度，底部锚在前角 pC
+    const info = Game.bInfo(b.id);
+    const spr = (info && info.spr) || 1;      // 真实比例系数（垃圾桶/长椅等小物不占满格）
     const footW = pB2.x - pD.x;
-    const w = footW * 1.1;
+    const w = footW * 1.1 * spr;
     const h = w * (im.naturalHeight / im.naturalWidth);
     const cx = (pD.x + pB2.x) / 2;
-    const by = pC.y + TH() * 0.22;   // 底部稍微下沉，盖住菱形前角
+    const midY = (pD.y + pB2.y) / 2;
+    // 小物锚在格子中心附近，建筑锚在前角
+    const by = spr < 1 ? midY + (pC.y - midY) * (0.35 + spr * 0.5) : pC.y + TH() * 0.22;
     // 柔和接地阴影
     ctx.beginPath();
-    ctx.ellipse(cx, pC.y - (pC.y - (pD.y + pB2.y) / 2) / 2, footW * 0.5, footW * 0.16, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, spr < 1 ? by - 1 : pC.y - (pC.y - midY) / 2, footW * 0.5 * spr, footW * 0.16 * spr, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(30,60,20,0.18)'; ctx.fill();
     if (selected) {
       ctx.save();
@@ -699,7 +703,8 @@
     if (gim) {
       ctx.globalAlpha = 0.75;
       const footW = pB.x - pD.x;
-      const w = footW * 1.1;
+      const gspr = (info && info.spr) || 1;
+      const w = footW * 1.1 * gspr;
       const h = w * (gim.naturalHeight / gim.naturalWidth);
       ctx.drawImage(gim, (pD.x + pB.x) / 2 - w / 2, pC.y + TH() * 0.22 - h, w, h);
       ctx.globalAlpha = 1;

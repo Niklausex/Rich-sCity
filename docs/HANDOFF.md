@@ -30,10 +30,11 @@
 | `src/index.tsx` | Hono 入口，输出 HTML 骨架 + 引 CDN（Tailwind）+ 静态 JS |
 | `public/static/js/main.js` | 启动、主循环、事件绑定 |
 | `public/static/js/engine/state.js` | 存档读写、存档迁移（含 v3.1 的 `POP_TO_INCOME` 老档兑换） |
-| `public/static/js/engine/game.js` | 经济/税收/幸福度/解锁逻辑（`weeklyIncome()` / `peakIncome()` / `isUnlocked()` / `nextUnlock()`） |
+| `public/static/js/engine/game.js` | 经济/税收/幸福度/解锁逻辑（`weeklyIncome()` / `peakIncome()` / `isUnlocked()` / `nextUnlock()`）+ **答题额度系统**：`DAILY_LIMIT=50`（每居民每日上限）、`SUBJECT_WEIGHTS`（英30/科25/通25/数12/语8）、`rollSubject()`、`askedCount/canAsk/refillQuestion`、`S.askedToday` 按居民计数（每天清零） |
 | `public/static/js/data/catalog.js` | **唯一数据源**：59 建筑（含 14 装饰 deco_*）、39 车辆 VEHICLES、8 帽子 HATS、24 招募角色、`RECRUIT_ENABLED=false` |
-| `public/static/js/data/questions-data.js` | 语/英/科/通识静态题库（按年级 3~6 分层） |
-| `public/static/js/data/questions.js` | 数学题程序化生成器 |
+| `public/static/js/data/questions-data.js` | 基础静态题库（语/英/科/通识，按年级 3~6 分层） |
+| `public/static/js/data/questions-data2.js` | **扩容题库**：`ENGLISH_VOCAB` 分级词汇表 255 词 + 科学/通识/英语 ~208 道新静态题（末尾合并进 `QUESTION_BANK`） |
+| `public/static/js/data/questions.js` | 题目引擎：数学生成器 + **英语词汇生成器**（词→义/义→词/拼写辨析/单词连线/字母填空，基于 ENGLISH_VOCAB 组合出上千道题）+ 抽题入口 `drawQuestion` |
 | `public/static/js/render/map.js` | 等距 2.5D Canvas 渲染（见 §4 约定） |
 | `public/static/js/render/assets.js` | 素材加载器：`Assets.opt(id)` 按 manifest 加载，缺失静默回退 emoji/程序绘制（不产生 404） |
 | `public/static/js/ui/panels.js` | 侧栏各面板（居民/建造/车库/市政/礼物/设置） |
@@ -56,7 +57,9 @@
 **★ 既定风格决策（用户明确拍板，勿改）**：因为 2.5D 地图要精致，美术风格统一为 **Q 版 3D 软胶玩偶 / 黏土微缩**（chibi 3D clay render / vinyl toy），**不用乐高凸点/积木质感**；"乐高"仅保留在游戏名。第一批 53 张素材即此风格。
 
 - 权威清单：`docs/ART_ASSETS.md`；提示词：`ART_PROMPTS_P0/P1/P2.md`；素材投递说明：`art_inbox/README.md`
-- 分批状态：第一批 53 张（45 建筑 + 8 家人）✅ 已上线；第二批待用户生成——P0 地面4+装饰14 → P1 车辆39 → P2 帽子8；招募居民 24 张 ⏸️ 暂缓（功能已关）
+- 分批状态：第一批 53 张（45 建筑 + 8 家人）✅；第二批 33 张（地面/道路 4 + 装饰 8 + 车辆 21）✅ 2026-08-01 上线，共 86 张；待补：装饰 6（hydrant/fence/pond/bridge/billboard/traffic_light）+ 大型载具 18（火车5/飞机6/船5/火箭2）+ 帽子 8；招募居民 24 张 ⏸️ 暂缓（功能已关）
+- **第二批经验（重要）**：用户交的图背景是"假透明棋盘格"烘在 RGB 里（alpha 全 255），需从边框 flood-fill 抠图；白色车身需严格阈值（diff≤8, bright≥233）+ 孔洞回填；地面图用户直接交的是带土层的等距菱形（非俯视正方形），需仿射变换把顶面菱形精确 warp 到 512×256；处理脚本 `/home/user/process_batch2.py` 可复用
+- **装饰真实比例 spr 系统**：catalog.js 装饰条目的 `spr` 字段（0.3~1.0，如 trashbin 0.3、tree_big 0.92），map.js `drawBuildingSprite`/`drawGhost` 按 spr 缩宽度并把小物件锚到格子中心附近，避免"垃圾桶比消防车大"
 - 接入管线（用户交白底 PNG，我们处理）：
   1. 白底 flood-fill 抠图 + 边缘羽化 → 裁掉空白 → LANCZOS 缩放 → WebP q88
   2. **地面材质额外一步**：正方形俯视图 → 旋转/压扁映射成 2:1 菱形、四角透明
@@ -74,15 +77,15 @@
 ## 7. Git / 部署状态
 
 - 仓库：https://github.com/Niklausex/Rich-sCity ，主分支 `main`（`genspark_ai_developer` 已合并，两分支同点）
-- 关键提交：`1acd980`(停车场3×3) → `6f9b627`(v3.1 经济) → `abb54a0`(美术文档全量重写) → `7a0d70f`(地面提示词去乐高化)
+- 关键提交：`1acd980`(停车场3×3) → `6f9b627`(v3.1 经济) → `abb54a0`(美术文档全量重写) → `7a0d70f`(地面提示词去乐高化) → `fd9d4ed`(HANDOFF) → v3.2(第二批素材+题库扩容+每日50题)
 - 推送前先调 GitHub 环境认证（Agent 环境：`setup_github_environment`）
 - 生产部署：**未做**；做之前必须让用户选部署路径
 
 ## 8. 待办清单（按优先级）
 
-1. **等用户交第二批美术** → 按 §5 管线接入（P0 → P1 → P2 顺序）
+1. **等用户交剩余美术**：装饰 6 + 大型载具 18 + 帽子 8（+可选重交：3 辆带卡通脸的车 ambulance/excavator/garbage、双向斑马线 road_crosswalk）→ 按 §5 管线接入
 2. 生产环境部署 Cloudflare Pages（先问用户选哪条部署路径）
-3. 迭代备选：题库扩到 7~12 年级、地图扩张、随机事件、成就徽章、云存档(D1)、家长后台
+3. 迭代备选：题库扩到 7~12 年级、英语词汇表继续扩容（现 255 词）、地图扩张、随机事件、成就徽章、云存档(D1)、家长后台
 
 ## 9. 已知的坑
 

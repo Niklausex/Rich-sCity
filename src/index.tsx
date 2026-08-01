@@ -100,6 +100,7 @@ app.get('/', (c) => {
 </div>
 
 <script src="/static/js/data/questions-data.js"></script>
+<script src="/static/js/data/questions-data2.js"></script>
 <script src="/static/js/data/questions.js"></script>
 <script src="/static/js/data/catalog.js"></script>
 <script src="/static/js/engine/state.js"></script>

@@ -32,6 +32,7 @@
       gifts: [],               // 待兑换礼物 {name,icon,desc,from,day,claimed}
       lastTaxDay: 0,           // 上次收税的天数
       dailyQuestions: [],      // 今日各居民问题 {residentId, subject, done}
+      askedToday: {},          // 今日各居民已答题数 {residentId: n}，每日上限50
       recentQuestions: [],     // 最近出过的题目(防重复)
       stats: { totalAnswered: 0, totalRight: 0, taxCollected: 0, peakIncome: 0 },
       log: []
@@ -71,6 +72,8 @@
       for (const [p, inc] of POP_TO_INCOME) if (pop >= p) grandfather = Math.max(grandfather, inc);
       s.stats.peakIncome = grandfather;
     }
+    // 高频答题：补齐每日计数器
+    if (!s.askedToday) s.askedToday = {};
     // 招募居民补上美术贴图 key（按名字匹配候选池）
     for (const r of s.residents) {
       if (r.sprite === undefined) {

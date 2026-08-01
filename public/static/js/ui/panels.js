@@ -139,6 +139,12 @@
       const career = CATALOG.CAREERS[r.level - 1];
       const need = CATALOG.xpNeeded(r.level);
       const dq = S.dailyQuestions.find(q => q.residentId === r.id && !q.done);
+      const asked = Game.askedCount(r.id);
+      const askBtn = dq
+        ? `<button class="btn btn-blue btn-small" data-ask="${r.id}"><i class="fas fa-circle-question"></i> 有问题!</button>`
+        : (Game.canAsk(r.id)
+          ? `<button class="btn btn-blue btn-small" data-ask="${r.id}"><i class="fas fa-comment-dots"></i> 提问 ${asked}/${Game.DAILY_LIMIT}</button>`
+          : `<span class="tag" style="font-size:11px">今日已问完50题</span>`);
       html += `<div class="card">
         ${portrait(r)}
         <div class="grow">
@@ -148,7 +154,7 @@
           <p style="margin-top:2px">升级进度 ${r.xp}/${need}</p>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px">
-          ${dq ? `<button class="btn btn-blue btn-small" data-ask="${r.id}"><i class="fas fa-circle-question"></i> 有问题!</button>` : ''}
+          ${askBtn}
           <button class="btn btn-small" data-dress="${r.id}"><i class="fas fa-shirt"></i> 装扮</button>
         </div>
       </div>`;
@@ -160,7 +166,9 @@
       else toast(r.msg, 'bad');
     };
     panelContent.querySelectorAll('[data-ask]').forEach(b => b.onclick = () => {
-      const dq = Game.state.dailyQuestions.find(q => q.residentId === b.dataset.ask && !q.done);
+      const rid = b.dataset.ask;
+      let dq = Game.state.dailyQuestions.find(q => q.residentId === rid && !q.done);
+      if (!dq) dq = Game.refillQuestion(rid);   // 当日未达上限，随时可继续提问
       if (dq) { closePanel(); Quiz.start(dq); }
     });
     panelContent.querySelectorAll('[data-dress]').forEach(b => b.onclick = () => renderDress(b.dataset.dress));

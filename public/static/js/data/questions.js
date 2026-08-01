@@ -192,6 +192,102 @@
     { q: '"跑"的英语单词是____（三个字母）', answer: 'run', tip: 'run 跑' }
   ];
 
+  /* ============ 英语词汇生成器（基于 ENGLISH_VOCAB 分级词表） ============ */
+  function vocabFor(grade) {
+    const V = window.ENGLISH_VOCAB || {};
+    const cur = V['g' + grade];
+    if (cur && cur.length) return cur;
+    for (let g = grade; g >= 3; g--) if (V['g' + g] && V['g' + g].length) return V['g' + g];
+    return V.g3 || [];
+  }
+
+  function misspell(word) {
+    const vowels = 'aeiou';
+    const chars = word.split('');
+    const mode = R(4);
+    if (mode === 0 && word.length >= 4) {
+      const i = RR(1, word.length - 2);
+      [chars[i], chars[i + 1]] = [chars[i + 1], chars[i]];
+    } else if (mode === 1) {
+      const idxs = chars.map((c, i) => vowels.includes(c) ? i : -1).filter(i => i >= 0);
+      if (idxs.length) { const i = idxs[R(idxs.length)]; let v; do { v = vowels[R(5)]; } while (v === chars[i]); chars[i] = v; }
+      else { const i = R(chars.length); chars[i] = vowels[R(5)]; }
+    } else if (mode === 2 && word.length >= 5) {
+      chars.splice(RR(1, word.length - 2), 1);
+    } else {
+      const i = R(word.length);
+      chars.splice(i, 0, chars[i]);
+    }
+    return chars.join('');
+  }
+
+  function genVocabChoice(grade, recent) {
+    const list = vocabFor(grade);
+    if (list.length < 4) return null;
+    const pick = shuffle(list).slice(0, 4);
+    const [word, cn] = pick[0];
+    const mode = R(3);
+    if (mode === 0) {
+      const q = `英语单词 "${word}" 是什么意思？`;
+      if (recent && recent.includes(q)) return null;
+      const opts = shuffle(pick.map(p => p[1]));
+      return { type: 'choice', q, opts, a: opts.indexOf(cn), tip: `${word} 的意思是"${cn}"。` };
+    }
+    if (mode === 1) {
+      const q = `"${cn}"的英语单词是？`;
+      if (recent && recent.includes(q)) return null;
+      const opts = shuffle(pick.map(p => p[0]));
+      return { type: 'choice', q, opts, a: opts.indexOf(word), tip: `"${cn}"的英语是 ${word}。` };
+    }
+    // 拼写辨析：正确拼写 vs 错误变体
+    if (word.length < 4 || /[^a-z]/.test(word)) {
+      const q = `"${cn}"的英语单词是？`;
+      if (recent && recent.includes(q)) return null;
+      const opts = shuffle(pick.map(p => p[0]));
+      return { type: 'choice', q, opts, a: opts.indexOf(word), tip: `"${cn}"的英语是 ${word}。` };
+    }
+    const q = `下面哪个是"${cn}"的正确拼写？`;
+    if (recent && recent.includes(q)) return null;
+    const wrongs = new Set();
+    let guard = 0;
+    while (wrongs.size < 3 && guard++ < 40) {
+      const w = misspell(word);
+      if (w !== word) wrongs.add(w);
+    }
+    if (wrongs.size < 3) return null;
+    const opts = shuffle([word, ...wrongs]);
+    return { type: 'choice', q, opts, a: opts.indexOf(word), tip: `正确拼写是 ${word}（${cn}）。` };
+  }
+
+  function genVocabFill(grade, recent) {
+    const list = vocabFor(grade);
+    if (!list.length) return null;
+    for (let t = 0; t < 8; t++) {
+      const [word, cn] = list[R(list.length)];
+      if (word.length < 3 || /[^a-z]/.test(word)) continue;
+      const i = RR(1, word.length - 2);
+      const shown = word.split('').map((c, j) => j === i ? '__' : c).join(' ');
+      const q = `"${cn}"的英语是 ${shown}（填一个字母）`;
+      if (recent && recent.includes(q)) continue;
+      return { type: 'fill', q, answer: word[i], tip: `${word} ${cn}` };
+    }
+    return null;
+  }
+
+  function genVocabMatch(grade) {
+    const list = vocabFor(grade);
+    if (list.length < 4) return null;
+    const pairs = shuffle(list).slice(0, 4).map(p => [p[0], p[1]]);
+    return {
+      type: 'match',
+      q: '把英语单词和它的中文意思连起来',
+      left: pairs.map(p => p[0]),
+      right: shuffle(pairs.map(p => p[1])),
+      answer: pairs.map(p => p[1]),
+      tip: pairs.map(p => `${p[0]} → ${p[1]}`).join('，')
+    };
+  }
+
   /* ============ 判断题库（科学/通识） ============ */
   const JUDGE_BANK = {
     science: [
@@ -252,15 +348,19 @@
 
     if (roll < 0.2) {
       // —— 连线 ——
-      q = genMatch(subject, g);
+      if (subject === 'english' && Math.random() < 0.7) q = genVocabMatch(g);
+      if (!q) q = genMatch(subject, g);
     } else if (roll < 0.4) {
       // —— 填空 ——
       if (subject === 'math') {
         const gens = MathFillGen[g] || MathFillGen[3];
         q = gens[R(gens.length)]();
       } else if (subject === 'english') {
-        const item = ENGLISH_FILL.filter(x => !recent.includes(x.q))[0] || ENGLISH_FILL[R(ENGLISH_FILL.length)];
-        q = { type: 'fill', q: item.q, answer: item.answer, tip: item.tip, inputMode: 'text' };
+        q = genVocabFill(g, recent);
+        if (!q) {
+          const item = ENGLISH_FILL.filter(x => !recent.includes(x.q))[0] || ENGLISH_FILL[R(ENGLISH_FILL.length)];
+          q = { type: 'fill', q: item.q, answer: item.answer, tip: item.tip, inputMode: 'text' };
+        }
       } else {
         q = null; // 其他科目回退到选择
       }
@@ -282,7 +382,11 @@
         let guard = 0;
         do { q = gens[R(gens.length)](); guard++; } while (recent.includes(q.q) && guard < 10);
       } else {
-        q = drawChoiceFromBank(subject, g, recent) || (() => { const gens = MathGen[g]; return gens[R(gens.length)](); })();
+        // 英语：60% 用词表生成器（可产出上千道不重复题），其余走静态题库
+        if (subject === 'english' && Math.random() < 0.6) {
+          for (let t = 0; t < 5 && !q; t++) q = genVocabChoice(g, recent);
+        }
+        if (!q) q = drawChoiceFromBank(subject, g, recent) || genVocabChoice(g, recent) || (() => { const gens = MathGen[g]; return gens[R(gens.length)](); })();
       }
     }
     q.subject = subject;
