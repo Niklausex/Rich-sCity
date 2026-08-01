@@ -1,7 +1,7 @@
 # 技术交接文档（Agent Handoff）
 
 > 目的：任何新接手的 Agent / 开发者，只读本文档 + README 即可完整理解项目现状、关键约定与待办。
-> 最后更新：2026-08-01（main @ 0d0490a，v3.4）
+> 最后更新：2026-08-01（main @ fb9dbb8，v3.4.1）
 > ⚠️ **文档更新规约（对所有 Agent 强制）**：每次功能变更后，必须同步更新 ①本文档（模块地图/版本演进/待办/坑）②README（功能清单/数据架构/最后更新行）③本头部的提交号。这是用户明确要求，目的是任何模型可无缝接手。
 
 ---
@@ -35,12 +35,12 @@
 | `public/static/js/data/catalog.js` | **唯一数据源**：59 建筑（含 14 装饰 deco_*）、39 车辆 VEHICLES、8 帽子 HATS、24 招募角色、`RECRUIT_ENABLED=false` |
 | `public/static/js/data/questions-data.js` | 基础静态题库（语/英/科/通识，按年级 3~6 分层） |
 | `public/static/js/data/questions-data2.js` | **扩容题库**：`ENGLISH_VOCAB` 分级词汇表 255 词 + 科学/通识/英语 ~208 道新静态题（末尾合并进 `QUESTION_BANK`） |
-| `public/static/js/data/questions-data3.js` | **v3.4 课程包**：牛津树/YLE 词汇并入 ENGLISH_VOCAB（去重后 374 词：g3:89/g4:101/g5:96/g6:88）+ EXT2 静态题（英语阅读24/美式通识50/科技科学32/语感鉴赏28，mergeBank 按题面全局去重）+ `window.CREATIVE_PROMPTS`×16 + `window.READ_ALOUD`×15 |
+| `public/static/js/data/questions-data3.js` | **v3.4 课程包**：牛津树/YLE 词汇并入 ENGLISH_VOCAB（去重后 374 词：g3:89/g4:101/g5:96/g6:88）+ EXT2 静态题（英语阅读24/美式通识50/科技科学32/语感鉴赏28，mergeBank 按题面全局去重）+ `window.CREATIVE_PROMPTS`×16 + `window.READ_ALOUD`×15（v3.4.1 每篇扩至 ~250-280 词、4-7 段落含对话、`\\n\\n` 分段、cn 为扩写中文大意） |
 | `public/static/js/data/questions.js` | 题目引擎：数学生成器（计算 + **LogicGen 逻辑思维11类**，选择题 60/40 分流）+ 英语词汇生成器（词→义/义→词/拼写辨析/单词连线/字母填空）+ **英语难度+1年级**（`g=min(g+1,6)`）+ `genListenChoice` 听音选词（`q.say`+`qkey='listen:'+word`，干扰项长度±1防猜）+ `drawCreative` 创作题 + 含英文引句的题自动提取 `q.say`（答案在选项中则不提取防漏答案）+ 抽题入口 `drawQuestion` |
 | `public/static/js/render/map.js` | 等距 2.5D Canvas 渲染（见 §4 约定） |
 | `public/static/js/render/assets.js` | 素材加载器：`Assets.opt(id)` 按 manifest 加载，缺失静默回退 emoji/程序绘制（不产生 404） |
-| `public/static/js/ui/panels.js` | 侧栏各面板（居民/建造/车库/市政/礼物/**跟读**/设置）；v3.4：`renderReading` 每日跟读（TTS 慢速0.72/正常0.95、"我完成跟读啦"→pending）+ 设置内**家长区**（两位数乘法门 `parentUnlocked` 会话级解锁 → 审批跟读发奖 / 作品集最近20篇 / 学习概况）+ `badge-reading` 未完成提醒 |
-| `public/static/js/ui/quiz.js` | 答题弹窗；v3.4：`speak()` 浏览器 speechSynthesis TTS（en-US，导出 `Quiz.speak`）、`q.say` 时插 🔊 再听一遍按钮（选择/填空/判断）、听音题自动播放、`renderCreate` 创作题（textarea ≥20字解锁提交，不判对错恒奖励）、🔁巩固复习徽标（紫）与 📖错题复习（橙）区分 |
+| `public/static/js/ui/panels.js` | 侧栏各面板（居民/建造/车库/市政/礼物/**跟读**/设置）；v3.4：`renderReading` 每日跟读（TTS 慢速0.72/正常0.95、"我完成跟读啦"→pending；v3.4.1：长文按 `\\n\\n` 分段渲染、每段前 🔊 逐段播放0.8x、⏹停止按钮、模块级 `document` 监听 `tts-state` 事件控制停止按钮显隐、点播放1.8s后仍无声则显示排查提示、中文大意收进 `<details>`）+ 设置内**家长区**（两位数乘法门 `parentUnlocked` 会话级解锁 → 审批跟读发奖 / 作品集最近20篇 / 学习概况）+ `badge-reading` 未完成提醒 |
+| `public/static/js/ui/quiz.js` | 答题弹窗；v3.4.1：**TTS 引擎重写**——`speak(text,rate,onEnd)` 分句切块（≤180字符）队列播放防 Chrome ~15s 掐断、`cancel()` 后延迟 150ms 再 speak 修 Chrome 静默吞掉 bug、5s `resume()` keepalive 防中途暂停、`speakSession` 计数器作废旧队列、`getVoices()` 缓存+`onvoiceschanged` 监听、播放状态派发 `tts-state` CustomEvent、导出 `Quiz.speak/stopSpeak/isSpeaking`、`q.say` 时插 🔊 再听一遍按钮（选择/填空/判断）、听音题自动播放、`renderCreate` 创作题（textarea ≥20字解锁提交，不判对错恒奖励）、🔁巩固复习徽标（紫）与 📖错题复习（橙）区分 |
 | `tools/build-asset-manifest.mjs` | 扫描 `public/static/assets/` 生成 `manifest.json`（webp 优先于 png） |
 
 ## 4. 渲染关键约定（改渲染前必读）
@@ -98,6 +98,7 @@
 | v3.2 | `c235525` | 第二批素材33张（共86）；英语词汇生成器+科学/通识扩容；每居民每日50题+科目权重 |
 | v3.3 | `69faf93` | 学习闭环：mastered 答对永久排除 + wrongPool 错题本30%复习直到答对；抽题防泄漏修复 |
 | v3.4 | `0d0490a` | **五科课程重构**：牛津树英语+1年级/听音选词TTS/ORT阅读；每日跟读+家长审批(20元+快乐5)；语文创作题(打字≥20字恒奖励)；数学逻辑思维11类(60/40)；美式通识50题；科技科学32题；遗忘曲线巩固复习(7天/20%)；设置内家长区(乘法门/作品集/学习概况)；qkey 去重体系 |
+| v3.4.1 | `fb9dbb8` | **跟读修复+扩容**：TTS 引擎重写修"点了没声音"（Chrome cancel后立刻speak被吞→150ms延迟；单条长语音~15s被掐→分句队列；voices异步→缓存+onvoiceschanged；5s resume keepalive；tts-state事件/stopSpeak/isSpeaking）；15篇跟读短文全部扩至 ~250-280 词（约10倍，多段落+对话，标题不变故存档轮播不受影响）；跟读面板分段渲染+逐段🔊+⏹停止+无声排查提示；新增 tests/e2e/readingui.mjs |
 
 ## 10. 测试（tests/e2e/，playwright-core 无头浏览器）
 
@@ -118,6 +119,7 @@ node mastertest.mjs                                   # v3.3 学习闭环专项
 - 每次 Bash 调用都从 `/home/user` 起步，命令要带 `cd /home/user/webapp &&`
 - README 里的沙盒预览 URL 会随沙盒重建失效，以 GetServiceUrl 实时结果为准
 - 不要给美术提示词里加任何 LEGO/凸点字眼（历史上犯过一次，已在 7a0d70f 修正）
-- TTS 用浏览器 speechSynthesis：Chrome 首次 `getVoices()` 返回空数组，quiz.js 加载时已预热一次；无网络依赖但音色随系统而异
+- **TTS 三大 Chrome 坑（v3.4.1 已在 quiz.js 引擎层修掉，改 TTS 代码前必读）**：① `speechSynthesis.cancel()` 之后同步调 `speak()` 会被 Chrome 静默丢弃 → 必须延迟 ~150ms；② 单条 utterance 播 ~15s 会被自动掐断 → 长文必须分句切块（≤180字符）经 `onend` 串成队列；③ 播放中会被自动 pause → 需 5s 间隔 `resume()` keepalive。另：首次 `getVoices()` 返回空数组（已缓存+onvoiceschanged 监听）；无网络依赖但音色随系统而异；headless 浏览器无语音引擎，E2E 里只能用 `tts-state` 事件桩测 UI 反馈（见 readingui.mjs）
+- 跟读短文 `READ_ALOUD` 的 **title 是轮播锚点语义**（`(day-1)%15` 按下标轮播）：改内容可以，别增删/重排条目，否则老存档当天短文会跳变
 - 题目去重键统一走 `Game.qKey(q)`（=`q.qkey || q.q`）——新增题型若题面是通用文案必须给 `qkey`，否则会在 mastered/recent 里互相碰撞
 - 家长区解锁状态 `parentUnlocked` 是内存变量（刷新页面重新上锁），故意不落存档
