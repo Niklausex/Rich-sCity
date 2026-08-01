@@ -5,23 +5,90 @@
   const overlay = document.getElementById('modal-overlay');
   const modal = document.getElementById('modal-box');
 
-  /* ---------- 英语朗读（浏览器内置 TTS，免费无需联网 API） ---------- */
-  function speak(text, rate) {
-    try {
-      if (!window.speechSynthesis) { UI.toast('这个浏览器不支持朗读', 'bad'); return; }
-      speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
+  /* ---------- 英语朗读引擎（浏览器内置 TTS，免费无需联网 API）----------
+   * 修复的坑：
+   * 1. Chrome：cancel() 后立刻 speak() 会被静默吞掉 → speak 前等 150ms
+   * 2. Chrome：单条语音约 15 秒被自动掐断 → 按句切块排队播放
+   * 3. Chrome：播放中会莫名 paused → 定时 resume() 保活
+   * 4. 语音列表异步加载（getVoices 首次为空）→ 监听 voiceschanged 缓存
+   */
+  let VOICES = [];
+  function loadVoices() { try { VOICES = speechSynthesis.getVoices() || []; } catch (e) {} }
+  if (window.speechSynthesis) {
+    loadVoices();
+    speechSynthesis.onvoiceschanged = loadVoices;
+  }
+  function pickVoice() {
+    if (!VOICES.length) loadVoices();
+    return VOICES.find(x => /en[-_]US/i.test(x.lang) && /Google US|Samantha|female/i.test(x.name)) ||
+           VOICES.find(x => /en[-_]US/i.test(x.lang)) ||
+           VOICES.find(x => /^en/i.test(x.lang)) || null;
+  }
+
+  let speakSession = 0;      // 会话号：新的播放/停止会作废旧队列
+  let keepAlive = null;
+  let speakingNow = false;
+
+  function stopSpeak() {
+    speakSession++;
+    speakingNow = false;
+    if (keepAlive) { clearInterval(keepAlive); keepAlive = null; }
+    try { speechSynthesis.cancel(); } catch (e) {}
+    document.dispatchEvent(new CustomEvent('tts-state', { detail: { speaking: false } }));
+  }
+
+  function speak(text, rate, onEnd) {
+    if (!window.speechSynthesis) { UI.toast('这个浏览器不支持语音朗读，换 Chrome/Edge 试试', 'bad'); return; }
+    stopSpeak();
+    const session = speakSession;
+    // 按句切块（每块 ≤ 180 字符），避免长文被 Chrome 掐断
+    const sentences = String(text).replace(/\s*\n+\s*/g, ' ').match(/[^.!?]+[.!?]+["'”]?\s*/g) || [String(text)];
+    const chunks = [];
+    let cur = '';
+    for (const sTxt of sentences) {
+      if (cur && (cur + sTxt).length > 180) { chunks.push(cur); cur = sTxt; }
+      else cur += sTxt;
+    }
+    if (cur.trim()) chunks.push(cur);
+
+    let i = 0;
+    const next = () => {
+      if (session !== speakSession) return;           // 已被新播放/停止作废
+      if (i >= chunks.length) {                       // 播完
+        speakingNow = false;
+        if (keepAlive) { clearInterval(keepAlive); keepAlive = null; }
+        document.dispatchEvent(new CustomEvent('tts-state', { detail: { speaking: false } }));
+        if (onEnd) onEnd();
+        return;
+      }
+      const u = new SpeechSynthesisUtterance(chunks[i++]);
       u.lang = 'en-US';
       u.rate = rate || 0.85;
-      const voices = speechSynthesis.getVoices();
-      const v = voices.find(x => /en[-_]US/i.test(x.lang) && /female|Samantha|Google US/i.test(x.name)) ||
-                voices.find(x => /en[-_]US/i.test(x.lang)) || voices.find(x => /^en/i.test(x.lang));
+      const v = pickVoice();
       if (v) u.voice = v;
-      speechSynthesis.speak(u);
-    } catch (e) { console.warn('TTS failed', e); }
+      u.onend = () => setTimeout(next, 200);          // 句间停顿 200ms
+      u.onerror = (e) => {
+        // interrupted/canceled 是正常打断；其他错误跳过本句继续
+        if (e.error === 'interrupted' || e.error === 'canceled') return;
+        setTimeout(next, 200);
+      };
+      try { speechSynthesis.speak(u); } catch (err) { setTimeout(next, 200); }
+    };
+
+    // Chrome bug：cancel 后必须等一拍再 speak，否则被静默吞掉
+    setTimeout(() => {
+      if (session !== speakSession) return;
+      speakingNow = true;
+      document.dispatchEvent(new CustomEvent('tts-state', { detail: { speaking: true } }));
+      next();
+      // 保活：Chrome 播放 ~15s 会自动 pause，定时踢一脚
+      keepAlive = setInterval(() => {
+        if (session !== speakSession || !speechSynthesis.speaking) return;
+        try { speechSynthesis.resume(); } catch (e) {}
+      }, 5000);
+    }, 150);
   }
-  // 预热 voices 列表（Chrome 首次调用为空）
-  if (window.speechSynthesis) speechSynthesis.getVoices();
+  function isSpeaking() { return speakingNow; }
 
   function start(dq) {
     const r = Game.state.residents.find(x => x.id === dq.residentId);
@@ -356,5 +423,5 @@
     setTimeout(redrawLines, 100);
   }
 
-  window.Quiz = { start, speak };
+  window.Quiz = { start, speak, stopSpeak, isSpeaking };
 })();

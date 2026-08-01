@@ -369,6 +369,13 @@
   }
 
   /* ---------- 每日英语跟读面板 ---------- */
+  // TTS 播放状态 → 控制跟读面板“停止”按钮显隐（面板重绘不重复注册，挂 document 一次即可）
+  document.addEventListener('tts-state', (e) => {
+    const stopBtn = document.getElementById('btn-read-stop');
+    if (stopBtn) stopBtn.style.display = e.detail.speaking ? '' : 'none';
+    const hint = document.getElementById('read-tts-hint');
+    if (hint && e.detail.speaking) hint.style.display = 'none';
+  });
   function renderReading() {
     const S = Game.state;
     panelTitle.innerHTML = '<i class="fas fa-microphone"></i> 每日英语跟读';
@@ -381,27 +388,48 @@
       : st === 'pending'
         ? '<span class="tag" style="background:#e8590c;color:#fff">⏳ 等待家长确认中…（请爸爸妈妈去 设置→家长区 点通过）</span>'
         : '<span class="tag tag-orange">🎯 今天还没完成跟读哦</span>';
+    const paras = String(p.text).split(/\n\n+/).filter(t => t.trim());
+    const parasHtml = paras.map((t, i) => `
+      <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:14px">
+        <button class="btn btn-blue btn-small btn-read-para" data-pi="${i}" title="播放这一段" style="flex-shrink:0;margin-top:4px">🔊</button>
+        <p style="font-size:17px;line-height:1.9;font-weight:600;color:#1d3557;margin:0">${t}</p>
+      </div>`).join('');
     panelContent.innerHTML = `
       <div class="card" style="background:#eef6ff"><div class="grow">
-        <h4>📖 今日短文：${p.title}</h4>
-        <p style="margin-top:4px">① 点“听一听”认真听 ② 跟着大声读出来（可以多听几遍） ③ 读给爸爸妈妈听，完成后点下面的按钮</p>
+        <h4>📖 今日短文：${p.title} <span class="tag" style="background:#dbe9ff;color:#1d3557">约 ${p.text.split(/\s+/).length} 词</span></h4>
+        <p style="margin-top:4px">① 点“听一听”认真听（也可以点每段前面的 🔊 一段一段听） ② 跟着大声读出来 ③ 读给爸爸妈妈听，完成后点下面的按钮</p>
         <div style="margin-top:6px">${statusHtml}</div>
       </div></div>
       <div class="card"><div class="grow">
-        <div style="font-size:17px;line-height:2;font-weight:600;color:#1d3557" id="read-text">${p.text}</div>
-        <div style="font-size:13px;color:#999;margin-top:8px;line-height:1.7">🇨🇳 ${p.cn}</div>
-        <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+        <div id="read-text">${parasHtml}</div>
+        <details style="margin-top:4px"><summary style="cursor:pointer;font-size:13px;color:#888">🇨🇳 看中文大意</summary>
+          <div style="font-size:13px;color:#999;margin-top:6px;line-height:1.8">${p.cn}</div>
+        </details>
+        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
           <button class="btn btn-blue" id="btn-read-play"><i class="fas fa-volume-high"></i> 听一听（慢速）</button>
           <button class="btn btn-blue btn-small" id="btn-read-play2"><i class="fas fa-volume-high"></i> 正常速度</button>
+          <button class="btn btn-small" id="btn-read-stop" style="background:#c92a2a;color:#fff;display:none"><i class="fas fa-stop"></i> 停止</button>
           ${st === 'todo' ? '<button class="btn btn-green" id="btn-read-done"><i class="fas fa-check"></i> 我完成跟读啦！</button>' : ''}
         </div>
+        <p id="read-tts-hint" style="font-size:12px;color:#999;margin-top:8px;display:none">💡 如果点了没声音：请用 Chrome / Edge 浏览器，并确认系统音量已打开、没静音。</p>
       </div></div>
       <div class="card" style="background:#fff8e0"><div class="grow">
         <h4>🎁 奖励规则</h4>
         <p>每天 1 篇跟读，家长确认后奖励 <b>💰 20 元 + 😊 快乐值 +5</b>！坦白完成，诚实的小市长才是好市长～</p>
       </div></div>`;
-    $('btn-read-play').onclick = () => Quiz.speak(p.text, 0.72);
-    $('btn-read-play2').onclick = () => Quiz.speak(p.text, 0.95);
+    const playAndCheck = (text, rate) => {
+      Quiz.speak(text, rate);
+      setTimeout(() => {  // 1.8 秒后还没进入播放状态 → 显示排查提示
+        const hint = $('read-tts-hint');
+        if (hint && !Quiz.isSpeaking()) hint.style.display = '';
+      }, 1800);
+    };
+    $('btn-read-play').onclick = () => playAndCheck(p.text, 0.72);
+    $('btn-read-play2').onclick = () => playAndCheck(p.text, 0.95);
+    $('btn-read-stop').onclick = () => Quiz.stopSpeak();
+    panelContent.querySelectorAll('.btn-read-para').forEach(b => {
+      b.onclick = () => playAndCheck(paras[+b.dataset.pi], 0.8);
+    });
     const doneBtn = $('btn-read-done');
     if (doneBtn) doneBtn.onclick = () => {
       if (Game.markReadingDone()) {
