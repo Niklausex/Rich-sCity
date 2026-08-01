@@ -7,16 +7,16 @@
 
 ## A. 地面/道路材质（4 张）
 
-**通用要求**：正俯视（top-down）、无缝可平铺、纹理**铺满整个画面**（不要留白边、不要圆角、不要物体）、颜色明快呈卡通乐高感。我会把方形贴图转成游戏里的等距菱形地块，你只管出方形无缝图。
+**通用要求**：正俯视（top-down）、无缝可平铺、纹理**铺满整个画面**（不要留白边、不要圆角、不要物体）、颜色明快、呈**黏土微缩模型**质感（与建筑/人物统一，⚠️ 不要乐高凸点、不要积木质感）。我会把方形贴图转成游戏里的等距菱形地块，你只管出方形无缝图。
 
 ### 1. `ground_grass.png` — 草地 A
 ```
-Seamless tileable top-down cartoon grass texture for a LEGO-style city building game, bright cheerful green (#7ec850), subtle clay-render bumps like soft plastic studs, smooth toy-like material, texture fills the entire square frame edge to edge, orthographic top-down view, no objects, no border, no text
+Seamless tileable top-down cartoon grass texture for a cute miniature clay diorama city game, bright cheerful green (#7ec850), smooth matte clay material with subtle soft undulation, no bumps, no studs, texture fills the entire square frame edge to edge, orthographic top-down view, no objects, no border, no text
 ```
 
 ### 2. `ground_grass2.png` — 草地 B（略深）
 ```
-Seamless tileable top-down cartoon grass texture for a LEGO-style city building game, slightly darker green (#6db544) than a companion tile, subtle clay-render bumps like soft plastic studs, smooth toy-like material, texture fills the entire square frame edge to edge, orthographic top-down view, no objects, no border, no text
+Seamless tileable top-down cartoon grass texture for a cute miniature clay diorama city game, slightly darker green (#6db544) than a companion tile, smooth matte clay material with subtle soft undulation, no bumps, no studs, texture fills the entire square frame edge to edge, orthographic top-down view, no objects, no border, no text
 ```
 
 ### 3. `road_tile.png` — 沥青路面（无标线！）
