@@ -247,6 +247,13 @@
         <p>${nxt ? `周收入达到 <b>${nxt.unlockIncome}</b> 元 → 解锁「${nxt.icon}${nxt.name}」` : '🎉 所有建筑已全部解锁！'}</p>
         <div class="xpbar"><div style="width:${nxt ? Math.min(100, peak / nxt.unlockIncome * 100) : 100}%"></div></div>
       </div></div>
+      <div class="card" style="background:#f0f9ee;margin-bottom:8px"><div class="grow" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div>
+          <h4>🗺️ 城市地块：${S.mapW} × ${S.mapH} 格</h4>
+          <p>${Game.expandCost() != null ? `扩建一次 +8列+6行（还能扩 ${Game.EXPAND_MAX - Game.expandLevel()} 次）` : '🎉 地块已扩到最大！'}</p>
+        </div>
+        ${Game.expandCost() != null ? `<button class="btn btn-green" id="btn-expand-land">💰${Game.expandCost()} 扩建地块</button>` : ''}
+      </div></div>
       <div class="panel-tabs">${cats.map(c => `<button class="ptab ${buildTab === c[0] ? 'active' : ''}" data-tab="${c[0]}">${c[1]}</button>`).join('')}</div><div class="shop-grid">`;
     for (const b of CATALOG.BUILDINGS.filter(x => x.cat === buildTab)) {
       const locked = !Game.isUnlocked(b);
@@ -261,6 +268,17 @@
     }
     html += '</div>';
     panelContent.innerHTML = html;
+    const exBtn = $('btn-expand-land');
+    if (exBtn) exBtn.onclick = () => {
+      const r = Game.expandLand();
+      toast(r.msg, r.ok ? 'gold' : 'bad');
+      if (r.ok) {
+        confetti(20);
+        if (window.CityMap && CityMap.fitView) CityMap.fitView();  // 重新取景看到新地块
+        renderBuild();
+        refreshTop();
+      }
+    };
     panelContent.querySelectorAll('.ptab').forEach(t => t.onclick = () => { buildTab = t.dataset.tab; renderBuild(); });
     panelContent.querySelectorAll('[data-build]').forEach(el => el.onclick = () => {
       const bid = el.dataset.build;
@@ -369,12 +387,19 @@
   }
 
   /* ---------- 每日英语跟读面板 ---------- */
-  // TTS 播放状态 → 控制跟读面板“停止”按钮显隐（面板重绘不重复注册，挂 document 一次即可）
+  // TTS 播放状态 → 控制跟读面板“暂停/继续/停止”按钮（面板重绘不重复注册，挂 document 一次即可）
   document.addEventListener('tts-state', (e) => {
+    const { speaking, paused } = e.detail;
     const stopBtn = document.getElementById('btn-read-stop');
-    if (stopBtn) stopBtn.style.display = e.detail.speaking ? '' : 'none';
+    if (stopBtn) stopBtn.style.display = speaking ? '' : 'none';
+    // 所有暂停/继续切换按钮（主控制栏 + 每段旁边）统一刷状态
+    document.querySelectorAll('.btn-tts-pause').forEach(b => {
+      b.style.display = speaking ? '' : 'none';
+      b.innerHTML = paused ? '▶ 继续' : '⏸ 暂停';
+      b.classList.toggle('btn-green', paused);
+    });
     const hint = document.getElementById('read-tts-hint');
-    if (hint && e.detail.speaking) hint.style.display = 'none';
+    if (hint && speaking) hint.style.display = 'none';
   });
   function renderReading() {
     const S = Game.state;
@@ -391,7 +416,10 @@
     const paras = String(p.text).split(/\n\n+/).filter(t => t.trim());
     const parasHtml = paras.map((t, i) => `
       <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:14px">
-        <button class="btn btn-blue btn-small btn-read-para" data-pi="${i}" title="播放这一段" style="flex-shrink:0;margin-top:4px">🔊</button>
+        <div style="flex-shrink:0;display:flex;flex-direction:column;gap:4px;margin-top:4px">
+          <button class="btn btn-blue btn-small btn-read-para" data-pi="${i}" title="慢速播放这一段">🔊</button>
+          <button class="btn btn-small btn-tts-pause" title="暂停/继续" style="display:none;background:#e8590c;color:#fff;font-size:11px;padding:4px 6px">⏸ 暂停</button>
+        </div>
         <p style="font-size:17px;line-height:1.9;font-weight:600;color:#1d3557;margin:0">${t}</p>
       </div>`).join('');
     panelContent.innerHTML = `
@@ -408,6 +436,7 @@
         <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
           <button class="btn btn-blue" id="btn-read-play"><i class="fas fa-volume-high"></i> 听一听（慢速）</button>
           <button class="btn btn-blue btn-small" id="btn-read-play2"><i class="fas fa-volume-high"></i> 正常速度</button>
+          <button class="btn btn-small btn-tts-pause" style="display:none;background:#e8590c;color:#fff">⏸ 暂停</button>
           <button class="btn btn-small" id="btn-read-stop" style="background:#c92a2a;color:#fff;display:none"><i class="fas fa-stop"></i> 停止</button>
           ${st === 'todo' ? '<button class="btn btn-green" id="btn-read-done"><i class="fas fa-check"></i> 我完成跟读啦！</button>' : ''}
         </div>
@@ -424,11 +453,15 @@
         if (hint && !Quiz.isSpeaking()) hint.style.display = '';
       }, 1800);
     };
-    $('btn-read-play').onclick = () => playAndCheck(p.text, 0.72);
+    const SLOW = 0.6;   // 慢速（整篇慢速与逐段播放统一用这个）
+    $('btn-read-play').onclick = () => playAndCheck(p.text, SLOW);
     $('btn-read-play2').onclick = () => playAndCheck(p.text, 0.95);
     $('btn-read-stop').onclick = () => Quiz.stopSpeak();
     panelContent.querySelectorAll('.btn-read-para').forEach(b => {
-      b.onclick = () => playAndCheck(paras[+b.dataset.pi], 0.8);
+      b.onclick = () => playAndCheck(paras[+b.dataset.pi], SLOW);
+    });
+    panelContent.querySelectorAll('.btn-tts-pause').forEach(b => {
+      b.onclick = () => { Quiz.isPaused() ? Quiz.resumeSpeak() : Quiz.pauseSpeak(); };
     });
     const doneBtn = $('btn-read-done');
     if (doneBtn) doneBtn.onclick = () => {

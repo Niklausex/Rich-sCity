@@ -86,6 +86,8 @@
     if (!s.writings) s.writings = [];
     if (s.reading === undefined) s.reading = null;
     if (typeof s.createdToday !== 'number') s.createdToday = 0;
+    // 地块扩建：老存档补上地图尺寸
+    if (!s.mapW) { s.mapW = 32; s.mapH = 24; }
     // 招募居民补上美术贴图 key（按名字匹配候选池）
     for (const r of s.residents) {
       if (r.sprite === undefined) {

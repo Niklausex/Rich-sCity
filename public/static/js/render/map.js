@@ -274,8 +274,27 @@
     }
   }
 
+  /* ---------- 平铺地面贴图（停车场等）：贴图等距角度和网格不一致时压扁校正 ----------
+   * parking.webp 实测：520×351，沥青菱形 x:1..518 / y:20..349（宽517 高329，比例0.636），
+   * 底角在 (266,349)。游戏网格菱形比例是 0.5 → 垂直压扁 517/(2*329)=0.786，
+   * 并把沥青底角精确钉在占地菱形前角 pC 上，彻底解决"悬空/偏小"。 */
+  const FLAT_SPRITES = { parking: { imW: 520, imH: 351, lotW: 517, lotH: 329, anchorX: 266, anchorY: 349 } };
+  function drawFlatSprite(b, im, pB2, pC, pD, selected) {
+    const g = FLAT_SPRITES[b.id];
+    const footW = pB2.x - pD.x;
+    const s = footW / g.lotW;                       // 横向：沥青宽 = 占地菱形宽
+    const k = (footW / 2 * (b.h / b.w)) / (g.lotH * s); // 纵向压扁到网格比例
+    const w = g.imW * s, h = g.imH * s * k;
+    const dx = pC.x - g.anchorX * s;
+    const dy = pC.y + 2 - g.anchorY * s * k;        // +2px 让路缘石微微咬进草地
+    if (selected) { ctx.save(); ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 16; }
+    ctx.drawImage(im, dx, dy, w, h);
+    if (selected) ctx.restore();
+  }
+
   /* ---------- 建筑贴图渲染（美术资产） ---------- */
   function drawBuildingSprite(b, im, pB2, pC, pD, selected) {
+    if (FLAT_SPRITES[b.id]) { drawFlatSprite(b, im, pB2, pC, pD, selected); return; }
     // 贴图宽度对齐等距占地菱形宽度，底部锚在前角 pC
     const info = Game.bInfo(b.id);
     const spr = (info && info.spr) || 1;      // 真实比例系数（垃圾桶/长椅等小物不占满格）

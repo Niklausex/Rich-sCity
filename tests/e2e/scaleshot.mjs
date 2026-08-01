@@ -1,0 +1,31 @@
+import { chromium } from 'playwright-core';
+const b = await chromium.launch();
+const pg = await b.newPage({ viewport: { width: 1400, height: 900 } });
+const errs = [];
+pg.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+pg.on('pageerror', e => errs.push(String(e)));
+await pg.goto('http://localhost:3000', { waitUntil: 'networkidle' });
+await pg.evaluate(() => localStorage.clear());
+await pg.reload({ waitUntil: 'networkidle' });
+await pg.waitForTimeout(800);
+const info = await pg.evaluate(() => {
+  const o = document.getElementById('modal-overlay'); if (o) o.style.display = 'none';
+  const S = Game.state;
+  const add = (id, x, y) => {
+    const inf = Game.bInfo(id);
+    S.buildings.push({ uid: 'b' + (S.nextUid++), id, name: inf.name, x, y, w: inf.w, h: inf.h });
+  };
+  add('parking', 10, 8);
+  add('house_brick', 14, 8);
+  add('house_wood', 17, 8);
+  add('house_villa', 10, 12);
+  for (let i = 8; i <= 20; i++) add('road', i, 6);
+  return { count: S.buildings.length, mapW: S.mapW, mapH: S.mapH };
+});
+console.log(JSON.stringify(info));
+await pg.waitForTimeout(1500);
+await pg.evaluate(() => { const o = document.getElementById('modal-overlay'); if (o) o.style.display = 'none'; });
+await pg.waitForTimeout(300);
+await pg.screenshot({ path: '/tmp/scale_check.png' });
+console.log('errors:', errs.length, errs.slice(0, 3));
+await b.close();

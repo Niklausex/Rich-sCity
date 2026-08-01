@@ -28,13 +28,41 @@
   let speakSession = 0;      // 会话号：新的播放/停止会作废旧队列
   let keepAlive = null;
   let speakingNow = false;
+  let pausedByUser = false;  // 用户主动暂停（keepAlive 的 resume 不能踢掉它）
+  let resumeHook = null;     // 句间空隙暂停时挂起的队列继续函数
+
+  function ttsEvent() {
+    document.dispatchEvent(new CustomEvent('tts-state', { detail: { speaking: speakingNow, paused: pausedByUser } }));
+  }
 
   function stopSpeak() {
     speakSession++;
     speakingNow = false;
+    pausedByUser = false;
+    resumeHook = null;
     if (keepAlive) { clearInterval(keepAlive); keepAlive = null; }
     try { speechSynthesis.cancel(); } catch (e) {}
-    document.dispatchEvent(new CustomEvent('tts-state', { detail: { speaking: false } }));
+    ttsEvent();
+  }
+
+  function pauseSpeak() {
+    if (!speakingNow || pausedByUser) return;
+    pausedByUser = true;
+    try { speechSynthesis.pause(); } catch (e) {}
+    ttsEvent();
+  }
+
+  function resumeSpeak() {
+    if (!pausedByUser) return;
+    pausedByUser = false;
+    if (resumeHook) {           // 在句间空隙暂停的：直接继续队列
+      const h = resumeHook; resumeHook = null;
+      ttsEvent();
+      h();
+    } else {                    // 句中暂停的：原生 resume
+      try { speechSynthesis.resume(); } catch (e) {}
+      ttsEvent();
+    }
   }
 
   function speak(text, rate, onEnd) {
@@ -54,10 +82,12 @@
     let i = 0;
     const next = () => {
       if (session !== speakSession) return;           // 已被新播放/停止作废
+      if (pausedByUser) { resumeHook = next; return; }// 句间空隙被暂停：挂起，等 resumeSpeak 继续
       if (i >= chunks.length) {                       // 播完
         speakingNow = false;
+        pausedByUser = false;
         if (keepAlive) { clearInterval(keepAlive); keepAlive = null; }
-        document.dispatchEvent(new CustomEvent('tts-state', { detail: { speaking: false } }));
+        ttsEvent();
         if (onEnd) onEnd();
         return;
       }
@@ -79,16 +109,17 @@
     setTimeout(() => {
       if (session !== speakSession) return;
       speakingNow = true;
-      document.dispatchEvent(new CustomEvent('tts-state', { detail: { speaking: true } }));
+      ttsEvent();
       next();
-      // 保活：Chrome 播放 ~15s 会自动 pause，定时踢一脚
+      // 保活：Chrome 播放 ~15s 会自动 pause，定时踢一脚（用户主动暂停时不能踢）
       keepAlive = setInterval(() => {
-        if (session !== speakSession || !speechSynthesis.speaking) return;
+        if (session !== speakSession || !speechSynthesis.speaking || pausedByUser) return;
         try { speechSynthesis.resume(); } catch (e) {}
       }, 5000);
     }, 150);
   }
   function isSpeaking() { return speakingNow; }
+  function isPaused() { return pausedByUser; }
 
   function start(dq) {
     const r = Game.state.residents.find(x => x.id === dq.residentId);
@@ -423,5 +454,5 @@
     setTimeout(redrawLines, 100);
   }
 
-  window.Quiz = { start, speak, stopSpeak, isSpeaking };
+  window.Quiz = { start, speak, stopSpeak, pauseSpeak, resumeSpeak, isSpeaking, isPaused };
 })();

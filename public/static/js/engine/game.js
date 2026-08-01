@@ -379,6 +379,25 @@
       return false;
     },
 
+    /* ---------- 地块扩建：每次 +8列 +6行，价格递增，最多扩3次(32×24→56×42) ---------- */
+    EXPAND_STEP: { w: 8, h: 6 },
+    EXPAND_MAX: 3,
+    expandLevel() { return Math.round((S.mapW - 32) / 8); },
+    expandCost() {
+      const lv = this.expandLevel();
+      return [500, 1500, 4000][lv] || null;   // 超过上限返回 null
+    },
+    expandLand() {
+      const cost = this.expandCost();
+      if (cost == null) return { ok: false, msg: '地块已经扩到最大啦！' };
+      if (S.money < cost) return { ok: false, msg: `扩建需要💰${cost}，先去答题/收税赚钱吧！` };
+      S.money -= cost;
+      S.mapW += this.EXPAND_STEP.w;
+      S.mapH += this.EXPAND_STEP.h;
+      this.pushLog(`花${cost}元扩建了地块 → ${S.mapW}×${S.mapH}格`);
+      this.save();
+      return { ok: true, msg: `🎉 地块扩大到 ${S.mapW}×${S.mapH} 格！` };
+    },
     demolish(uid) {
       const i = S.buildings.findIndex(x => x.uid === uid);
       if (i < 0) return false;
