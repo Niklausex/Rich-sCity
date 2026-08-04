@@ -1,4 +1,4 @@
-# v4.0 载具素材重制提示词 — 16 张
+# v4.0 载具素材重制提示词 — 17 张（16 载具 + 1 铁路桥）
 
 > **本次返工原因**：上一批载具背景是画出来的"假透明"棋盘格纹理（灰白格子）+ 星光装饰点，不是纯白，程序无法干净抠图。
 >
@@ -101,9 +101,18 @@ A cute chibi 3D clay render toy double-deck super jumbo jet inspired by Airbus A
 A cute chibi 3D clay render toy military transport aircraft inspired by Xian Y-20, chubby olive-green wide fuselage with high wings and four engines, big tail, smooth vinyl toy texture, 3/4 side view facing lower-left, in level flight, soft studio light from upper left, solid pure white background #FFFFFF, background must be plain flat white with no checkerboard pattern, no transparency grid, no sparkles, no glitter, no particles, no texture, no shadow on ground, no text, no logo, no watermark
 ```
 
+## D. 地形瓦补做（1 张）
+
+> 检查结论：上一批 7 张地形瓦里，河水×2、直轨、弯轨、道口、公路桥 6 张背景干净不用重做；**只有铁路桥有棋盘格残留，需要重做这 1 张**。
+
+### 17. `bridge_rail.png` — 铁路桥
+```
+A cute chibi 3D clay render toy steel truss railway bridge tile for an isometric city building game, chubby gray steel girder frame with brown railway track and sleepers running across the deck, the bridge spans diagonally from upper-right to lower-left in isometric 3/4 top-down view (same diamond angle as an isometric road tile), smooth vinyl toy texture, soft studio light from upper left, solid pure white background #FFFFFF, background must be plain flat white with no checkerboard pattern, no transparency grid, no sparkles, no glitter, no particles, no texture, no shadow on ground, no water below, no text, no logo, no watermark
+```
+
 ---
 
 ## 交付方式
-- 16 张图打包 rar/zip 上传即可，文件名对应上面的 `veh_*.png`（webp 也行）
-- 分辨率 1024+ 均可，程序会统一抠白 → 裁剪 → 缩到 520px 宽 → WebP
-- **地形瓦 7 张（河水/铁轨/桥）不用重做**，上一批已干净入库
+- **共 17 张**（16 载具 + 1 铁路桥）打包 rar/zip 上传即可，文件名对应上面的 `veh_*.png` / `bridge_rail.png`（webp 也行）
+- 分辨率 1024+ 均可，程序会统一抠白 → 裁剪 → 缩放 → WebP
+- 其余 6 张地形瓦（河水×2/直轨/弯轨/道口/公路桥）**不用重做**，已干净入库
