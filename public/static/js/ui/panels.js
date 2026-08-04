@@ -375,7 +375,7 @@
       </div>`;
     });
     html += `<div class="card"><div class="grow"><h4>🏅 兑换卡获得条件</h4>
-      <p>${CATALOG.GIFTS.map(g => `${g.icon} 同一居民连对${g.streak}题 → ${g.name}`).join('<br>')}</p></div></div>`;
+      <p>${Game.giftTable().map(g => `${g.icon} 同一居民连对${g.streak}题 → ${g.name}`).join('<br>')}</p></div></div>`;
     panelContent.innerHTML = html;
     panelContent.querySelectorAll('[data-claim]').forEach(b => b.onclick = () => {
       if (Game.claimGift(+b.dataset.claim)) {
@@ -488,9 +488,11 @@
         </div>
       </div></div>
       <div class="card"><div class="grow">
-        <h4>📚 题目难度（跟着孩子年级调整）</h4>
-        <p>现在的难度：<b>${grades.find(g => g[0] === S.grade)?.[1] || S.grade + '年级'}</b>，题目会随年级变难，知识范围也会扩大。</p>
-        <div class="panel-tabs" style="margin-top:8px">${grades.map(g => `<button class="ptab ${S.grade === g[0] ? 'active' : ''}" data-grade="${g[0]}">${g[1]}</button>`).join('')}</div>
+        <h4>📚 题目难度</h4>
+        ${Game.config.grade != null
+          ? `<p>现在的难度：<b>${grades.find(g => g[0] === S.grade)?.[1] || S.grade + '年级'}</b>（🔒 由爸爸妈妈在家长后台设定，需要调整请找家长哦）</p>`
+          : `<p>现在的难度：<b>${grades.find(g => g[0] === S.grade)?.[1] || S.grade + '年级'}</b>，题目会随年级变难，知识范围也会扩大。</p>
+        <div class="panel-tabs" style="margin-top:8px">${grades.map(g => `<button class="ptab ${S.grade === g[0] ? 'active' : ''}" data-grade="${g[0]}">${g[1]}</button>`).join('')}</div>`}
       </div></div>
       <div class="card" style="background:#e7f5ff"><div class="grow">
         <h4>☁️ 家庭账号（云存档）</h4>

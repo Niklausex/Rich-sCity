@@ -140,6 +140,71 @@ api.put('/save', async (c) => {
   return c.json({ ok: true, updatedAt: now })
 })
 
+/* ---------- 游戏规则配置（家长设置，孩子端轮询实时生效） ---------- */
+// 允许的配置键及校验（白名单，防止塞垃圾数据）
+function sanitizeConfig(raw: any): { ok: boolean; cfg?: any; msg?: string } {
+  if (!raw || typeof raw !== 'object') return { ok: false, msg: '配置格式错误' }
+  const cfg: any = {}
+  const num = (v: any, min: number, max: number) => {
+    const n = Number(v)
+    return Number.isFinite(n) ? Math.max(min, Math.min(max, Math.round(n))) : null
+  }
+  if (raw.grade != null) { const v = num(raw.grade, 3, 6); if (v == null) return { ok: false, msg: 'grade 无效' }; cfg.grade = v }
+  if (raw.dailyLimit != null) { const v = num(raw.dailyLimit, 1, 200); if (v == null) return { ok: false, msg: 'dailyLimit 无效' }; cfg.dailyLimit = v }
+  if (raw.rewardBase != null) { const v = num(raw.rewardBase, 0, 100); if (v == null) return { ok: false, msg: 'rewardBase 无效' }; cfg.rewardBase = v }
+  if (raw.rewardPerLevel != null) { const v = num(raw.rewardPerLevel, 0, 50); if (v == null) return { ok: false, msg: 'rewardPerLevel 无效' }; cfg.rewardPerLevel = v }
+  if (raw.readingReward != null) { const v = num(raw.readingReward, 0, 500); if (v == null) return { ok: false, msg: 'readingReward 无效' }; cfg.readingReward = v }
+  if (raw.maxCreatePerDay != null) { const v = num(raw.maxCreatePerDay, 0, 10); if (v == null) return { ok: false, msg: 'maxCreatePerDay 无效' }; cfg.maxCreatePerDay = v }
+  if (raw.subjectWeights != null) {
+    if (typeof raw.subjectWeights !== 'object') return { ok: false, msg: 'subjectWeights 无效' }
+    const sw: any = {}
+    for (const k of ['english', 'science', 'general', 'math', 'chinese']) {
+      const v = num(raw.subjectWeights[k], 0, 100)
+      if (v == null) return { ok: false, msg: '科目权重无效' }
+      sw[k] = v
+    }
+    if (Object.values(sw).reduce((a: number, b: any) => a + b, 0) <= 0) return { ok: false, msg: '科目权重不能全为0' }
+    cfg.subjectWeights = sw
+  }
+  if (raw.gifts != null) {
+    if (!Array.isArray(raw.gifts) || raw.gifts.length > 12) return { ok: false, msg: '礼物列表无效（最多12档）' }
+    const gifts = []
+    for (const g of raw.gifts) {
+      const streak = num(g && g.streak, 2, 1000)
+      const name = String((g && g.name) || '').trim().slice(0, 30)
+      const icon = String((g && g.icon) || '🎁').slice(0, 8)
+      const desc = String((g && g.desc) || '').trim().slice(0, 80)
+      if (streak == null || !name) return { ok: false, msg: '每档礼物需要连对题数(≥2)和名称' }
+      gifts.push({ streak, name, icon, desc })
+    }
+    gifts.sort((a, b) => a.streak - b.streak)
+    for (let i = 1; i < gifts.length; i++) if (gifts[i].streak === gifts[i - 1].streak) return { ok: false, msg: '礼物档位的连对题数不能重复' }
+    cfg.gifts = gifts
+  }
+  return { ok: true, cfg }
+}
+
+// 孩子端/家长端都可读
+api.get('/config', async (c) => {
+  const u = await auth(c)
+  if (!u) return c.json({ ok: false, msg: '未登录' }, 401)
+  const f = await c.env.DB.prepare('SELECT config, config_updated_at FROM families WHERE id = ?').bind(u.familyId).first()
+  return c.json({ ok: true, config: f && f.config ? JSON.parse(f.config as string) : null, updatedAt: (f && f.config_updated_at) || 0 })
+})
+
+// 仅家长可写
+api.put('/config', async (c) => {
+  const u = await auth(c, 'parent')
+  if (!u) return c.json({ ok: false, msg: '需要家长登录' }, 401)
+  const body = await c.req.json().catch(() => null)
+  const r = sanitizeConfig(body && body.config)
+  if (!r.ok) return c.json({ ok: false, msg: r.msg }, 400)
+  const now = Date.now()
+  await c.env.DB.prepare('UPDATE families SET config = ?, config_updated_at = ? WHERE id = ?')
+    .bind(JSON.stringify(r.cfg), now, u.familyId).run()
+  return c.json({ ok: true, config: r.cfg, updatedAt: now })
+})
+
 /* ---------- 家长：修改家长密码 / 重置游戏密码 ---------- */
 api.post('/parent/change-password', async (c) => {
   const u = await auth(c, 'parent')
@@ -184,7 +249,9 @@ api.post('/parent/approve-reading', async (c) => {
   const s = JSON.parse(row.data as string)
   if (!s.reading || s.reading.status !== 'pending') return c.json({ ok: false, msg: '没有待审批的跟读' })
   s.reading.status = 'approved'
-  const reward = 20
+  const fam = await c.env.DB.prepare('SELECT config FROM families WHERE id = ?').bind(u.familyId).first()
+  const fcfg = fam && fam.config ? JSON.parse(fam.config as string) : {}
+  const reward = typeof fcfg.readingReward === 'number' ? fcfg.readingReward : 20
   s.money = (s.money || 0) + reward
   s.joy = Math.min(100, (s.joy || 0) + 5)
   s.log = s.log || []

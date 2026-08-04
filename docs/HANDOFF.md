@@ -1,7 +1,7 @@
 # 技术交接文档（Agent Handoff）
 
 > 目的：任何新接手的 Agent / 开发者，只读本文档 + README 即可完整理解项目现状、关键约定与待办。
-> 最后更新：2026-08-04（main @ main HEAD，v3.7（家庭账号+云存档+已部署 Cloudflare Pages））
+> 最后更新：2026-08-04（main @ main HEAD，v3.8（家长后台游戏规则配置，实时下发））
 > ⚠️ **文档更新规约（对所有 Agent 强制）**：每次功能变更后，必须同步更新 ①本文档（模块地图/版本演进/待办/坑）②README（功能清单/数据架构/最后更新行）③本头部的提交号。这是用户明确要求，目的是任何模型可无缝接手。
 
 ---
@@ -161,3 +161,31 @@ node tests/e2e/admintest.mjs                          # v3.6 家长后台全流�
 2. 所有 E2E 必须先过登录门：用 `_cloudlogin.mjs` 的 cloudLogin(pg) 后 reload；7 个旧测试已批量注入
 3. 一个家庭账号两个密码：游戏密码（孩子）/家长密码（后台），注册时强制不同；家长可在后台重置游戏密码（会踢掉所有 game token）
 4. Cloud.logout 会清 richs_city_cloud + 游戏存档并 reload（防止串档）
+
+
+## v3.8 家长后台游戏规则配置
+
+### 功能
+家长后台新增「🎛️ 游戏规则设置」卡片，可配置并实时下发到孩子游戏端（30s 轮询 + 启动即拉取）：
+- 题目难度（年级 3-6，锁定后孩子设置面板变只读；留空=孩子可自调）
+- 每位居民每天答题上限（1-200）
+- 答对奖励 = 基础(0-100) + 等级×加成(0-50)
+- 跟读通过奖励（0-500，后台服务端审批也读此值）
+- 每天创作题上限（0-10，0=关闭）
+- 科目出题比重（英/科/通/数/语 各 0-100）
+- 礼物盒：最多12档，每档 连对题数(≥2)+图标+名称+说明，可增删改
+
+### 实现
+- `migrations/0002_family_config.sql`：families 加 config(TEXT JSON) + config_updated_at
+- `src/api.ts`：GET /api/config（任意登录角色）、PUT /api/config（仅 parent，sanitizeConfig 白名单校验：范围钳制/礼物档去重排序/权重非全零）；approve-reading 奖励改读 config.readingReward
+- `game.js`：DEFAULT_CFG + CFG；`Game.applyConfig(remote)`（grade 锁定会直接改 S.grade 并存档）；`Game.config` getter；`Game.giftTable()`；DAILY_LIMIT 改为 getter；rollSubject/answer奖励/礼物判定/创作题上限/approveReading 全部读 CFG
+- `cloud.js`：fetchConfig()（比对 updatedAt，变更时派发 `cloud-config` 事件）；syncOnBoot 先拉配置再进游戏；30s setInterval 轮询；导出 Cloud.fetchConfig
+- `main.js`：cloud-config 事件 → toast「爸爸妈妈更新了游戏规则」
+- `panels.js`：CFG.grade 非空时难度区变只读锁定提示；礼物说明改用 Game.giftTable()
+- `admin.js`：CFG_DEFAULTS/cfgVal/configCardHtml/bindConfigCard；保存 PUT /api/config；「恢复全部默认」PUT 空对象
+- E2E：`tests/e2e/configtest.mjs`（默认值/后台改规则/孩子端 fetchConfig 生效/奖励=base+level×perLevel/礼物触发/难度锁定 UI/恢复默认），全部通过；cloudtest/admintest/expandtest/v34test/quiztest 回归通过
+
+### 坑
+1. 部署后全球边缘传播需 ~20s，紧接部署就 curl 新接口可能打到旧版本报 Internal Server Error，等待重试即可
+2. 孩子端"实时"=30s 轮询（fetchConfig），测试里用 `Cloud.fetchConfig()` 手动触发等价验证
+3. config 为 NULL/空对象 = 全默认；applyConfig 用 DEFAULT_CFG 兜底展开，前端不怕缺键

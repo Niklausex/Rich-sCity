@@ -109,7 +109,24 @@
     showGate(hasLocal ? 'login' : 'register', () => syncOnBoot(done));
   }
 
+  /* ================= 家长配置（后台设置，孩子端实时生效） ================= */
+  let cfgUpdatedAt = 0;
+  async function fetchConfig() {
+    if (!cfg || !cfg.token) return;
+    try {
+      const j = await call('/config');
+      if (j.ok && window.Game) {
+        const changed = (j.updatedAt || 0) !== cfgUpdatedAt;
+        cfgUpdatedAt = j.updatedAt || 0;
+        Game.applyConfig(j.config);
+        if (changed && cfgUpdatedAt) document.dispatchEvent(new CustomEvent('cloud-config', { detail: { config: j.config } }));
+      }
+    } catch (e) { /* 离线忽略，用当前规则继续玩 */ }
+  }
+  setInterval(fetchConfig, 30000); // 30s 轮询：家长后台改完半分钟内生效
+
   async function syncOnBoot(done) {
+    await fetchConfig(); // 先拉规则再进游戏，保证开局即按家长设置
     const j = await call('/save').catch(() => null);
     if (!j || !j.ok) { offline = !j; return done(); }
     const localRaw = localStorage.getItem(GameState.SAVE_KEY);
@@ -211,7 +228,7 @@
   }
 
   window.Cloud = {
-    ensureLogin, push: schedulePush, pushNow, logout,
+    ensureLogin, push: schedulePush, pushNow, logout, fetchConfig,
     get username() { return cfg ? cfg.username : null; },
     get online() { return !offline && !!(cfg && cfg.token); },
     get loggedIn() { return !!(cfg && cfg.token); }

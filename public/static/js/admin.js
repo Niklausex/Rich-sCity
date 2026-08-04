@@ -12,6 +12,20 @@
 
   let sess = null;   // { token, username }
   let cloud = null;  // { save, day, money, updatedAt, device } | null（云端为空）
+  let gameCfg = null; // 家长配置（null=未设置，游戏用默认值）
+
+  const CFG_DEFAULTS = {
+    grade: null, dailyLimit: 50, rewardBase: 2, rewardPerLevel: 1,
+    readingReward: 20, maxCreatePerDay: 2,
+    subjectWeights: { english: 30, science: 25, general: 25, math: 12, chinese: 8 },
+    gifts: [
+      { streak: 10, icon: '🚗', name: '小汽车玩具兑换卡', desc: '连续答对10题获得！可以找爸爸妈妈兑换一辆玩具小汽车' },
+      { streak: 20, icon: '🧱', name: '乐高小套装兑换卡', desc: '连续答对20题获得！可以兑换一盒乐高小套装' },
+      { streak: 30, icon: '🍦', name: '冰淇淋兑换卡', desc: '连续答对30题获得！可以兑换一个美味冰淇淋' },
+      { streak: 50, icon: '🎢', name: '游乐园门票兑换卡', desc: '连续答对50题获得！可以兑换一次游乐园之旅' },
+      { streak: 100, icon: '🏆', name: '超级大奖兑换卡', desc: '连续答对100题！和爸爸妈妈商量一个大心愿吧！' }
+    ]
+  };
 
   function loadSess() { try { sess = JSON.parse(localStorage.getItem(PK)); } catch (e) { sess = null; } return sess; }
   function saveSess() { localStorage.setItem(PK, JSON.stringify(sess)); }
@@ -89,8 +103,132 @@
     return `<p class="muted">孩子还没点"我完成跟读啦"，暂无待确认项。</p>`;
   }
 
+  /* ---------- 游戏规则设置卡片 ---------- */
+  function cfgVal() { // 当前编辑值 = 云端配置 merge 默认
+    const c = gameCfg || {};
+    return {
+      grade: c.grade != null ? c.grade : CFG_DEFAULTS.grade,
+      dailyLimit: c.dailyLimit != null ? c.dailyLimit : CFG_DEFAULTS.dailyLimit,
+      rewardBase: c.rewardBase != null ? c.rewardBase : CFG_DEFAULTS.rewardBase,
+      rewardPerLevel: c.rewardPerLevel != null ? c.rewardPerLevel : CFG_DEFAULTS.rewardPerLevel,
+      readingReward: c.readingReward != null ? c.readingReward : CFG_DEFAULTS.readingReward,
+      maxCreatePerDay: c.maxCreatePerDay != null ? c.maxCreatePerDay : CFG_DEFAULTS.maxCreatePerDay,
+      subjectWeights: c.subjectWeights || { ...CFG_DEFAULTS.subjectWeights },
+      gifts: (c.gifts && c.gifts.length) ? c.gifts.map(g => ({ ...g })) : CFG_DEFAULTS.gifts.map(g => ({ ...g }))
+    };
+  }
+
+  function configCardHtml() {
+    const v = cfgVal();
+    const numRow = (id, label, val, hint) => `
+      <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
+        <label style="min-width:180px">${label}</label>
+        <input type="number" id="${id}" value="${val}" style="width:90px">
+        <span class="muted" style="font-size:12px">${hint || ''}</span>
+      </div>`;
+    const sw = v.subjectWeights;
+    const giftsRows = v.gifts.map((g, i) => `
+      <div class="gift-row" data-gi="${i}" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center">
+        <input class="g-icon" value="${esc(g.icon)}" maxlength="4" style="width:52px" title="图标">
+        连对 <input class="g-streak" type="number" value="${g.streak}" style="width:64px" min="2"> 题 →
+        <input class="g-name" value="${esc(g.name)}" maxlength="30" style="flex:1;min-width:140px" placeholder="礼物名称">
+        <input class="g-desc" value="${esc(g.desc || '')}" maxlength="80" style="flex:2;min-width:180px" placeholder="给孩子看的说明（可空）">
+        <button class="btn btn-gray btn-del-gift" style="padding:4px 10px" title="删除此档">✕</button>
+      </div>`).join('');
+    return `
+      <div class="card"><h3>🎛️ 游戏规则设置 <span class="muted" style="font-weight:400;font-size:12px">改完点保存，孩子游戏内约30秒自动生效${gameCfg ? '' : '（当前全部为默认值）'}</span></h3>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap">
+          <label style="min-width:180px">📚 题目难度（年级）</label>
+          <select id="cf-grade">
+            <option value="" ${v.grade == null ? 'selected' : ''}>跟随游戏内设置（孩子可自己调）</option>
+            ${[3, 4, 5, 6].map(g => `<option value="${g}" ${v.grade === g ? 'selected' : ''}>${g}年级（锁定，孩子不能改）</option>`).join('')}
+          </select>
+        </div>
+        ${numRow('cf-daily', '📝 每位居民每天最多答题', v.dailyLimit, '1-200 道')}
+        ${numRow('cf-rbase', '💰 答对基础奖励（元）', v.rewardBase, '0-100')}
+        ${numRow('cf-rlevel', '💰 每级额外加成（元/级）', v.rewardPerLevel, '实际=基础+等级×加成')}
+        ${numRow('cf-reading', '🎙️ 跟读通过奖励（元）', v.readingReward, '0-500')}
+        ${numRow('cf-create', '✍️ 每天创作题上限', v.maxCreatePerDay, '0-10 道，0=关闭创作题')}
+        <h4 style="margin-top:14px">📊 科目出题比重（相对权重，越大越常出）</h4>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+          ${[['english', '英语'], ['science', '科学'], ['general', '通识'], ['math', '数学'], ['chinese', '语文']].map(([k, n]) =>
+            `<label style="display:flex;align-items:center;gap:4px">${n}<input type="number" id="cf-sw-${k}" value="${sw[k]}" min="0" max="100" style="width:60px"></label>`).join('')}
+        </div>
+        <h4 style="margin-top:14px">🎁 礼物盒（连对奖励兑换卡）</h4>
+        <div id="gift-list">${giftsRows}</div>
+        <button class="btn btn-gray" id="btn-add-gift" style="margin-top:8px;padding:6px 12px">＋ 加一档礼物</button>
+        <div class="row" style="margin-top:14px">
+          <button class="btn btn-green" id="btn-cfg-save"><i class="fas fa-check"></i> 保存规则（立即下发）</button>
+          <button class="btn btn-gray" id="btn-cfg-reset">恢复全部默认</button>
+        </div>
+        <div class="err" id="cfg-err" style="margin-top:6px"></div>
+      </div>`;
+  }
+
+  function bindConfigCard() {
+    const list = $('gift-list');
+    if (!list) return;
+    const bindDel = () => list.querySelectorAll('.btn-del-gift').forEach(b => b.onclick = () => { b.closest('.gift-row').remove(); });
+    bindDel();
+    $('btn-add-gift').onclick = () => {
+      const div = document.createElement('div');
+      div.className = 'gift-row';
+      div.style.cssText = 'display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center';
+      div.innerHTML = `<input class="g-icon" value="🎁" maxlength="4" style="width:52px">
+        连对 <input class="g-streak" type="number" value="15" style="width:64px" min="2"> 题 →
+        <input class="g-name" value="" maxlength="30" style="flex:1;min-width:140px" placeholder="礼物名称">
+        <input class="g-desc" value="" maxlength="80" style="flex:2;min-width:180px" placeholder="给孩子看的说明（可空）">
+        <button class="btn btn-gray btn-del-gift" style="padding:4px 10px">✕</button>`;
+      list.appendChild(div);
+      bindDel();
+    };
+    $('btn-cfg-save').onclick = async () => {
+      const err = (m) => { $('cfg-err').textContent = m; };
+      err('');
+      const gradeSel = $('cf-grade').value;
+      const config = {
+        grade: gradeSel === '' ? null : +gradeSel,
+        dailyLimit: +$('cf-daily').value,
+        rewardBase: +$('cf-rbase').value,
+        rewardPerLevel: +$('cf-rlevel').value,
+        readingReward: +$('cf-reading').value,
+        maxCreatePerDay: +$('cf-create').value,
+        subjectWeights: {
+          english: +$('cf-sw-english').value, science: +$('cf-sw-science').value,
+          general: +$('cf-sw-general').value, math: +$('cf-sw-math').value, chinese: +$('cf-sw-chinese').value
+        },
+        gifts: [...list.querySelectorAll('.gift-row')].map(row => ({
+          icon: row.querySelector('.g-icon').value.trim() || '🎁',
+          streak: +row.querySelector('.g-streak').value,
+          name: row.querySelector('.g-name').value.trim(),
+          desc: row.querySelector('.g-desc').value.trim()
+        }))
+      };
+      if (config.grade == null) delete config.grade;
+      for (const g of config.gifts) {
+        if (!g.name) return err('每档礼物都要填名称（不要的档位请点✕删除）');
+        if (!(g.streak >= 2)) return err('礼物的连对题数至少为 2');
+      }
+      const btn = $('btn-cfg-save'); btn.disabled = true;
+      const j = await call('/config', { method: 'PUT', body: JSON.stringify({ config }) });
+      btn.disabled = false;
+      if (!j.ok) return err(j.msg || '保存失败');
+      gameCfg = j.config;
+      toast('✅ 规则已保存，孩子游戏内约30秒自动生效');
+      renderDash();
+    };
+    $('btn-cfg-reset').onclick = async () => {
+      if (!confirm('恢复全部默认规则（难度改回孩子可自调）？')) return;
+      const j = await call('/config', { method: 'PUT', body: JSON.stringify({ config: {} }) });
+      if (j.ok) { gameCfg = j.config; toast('✅ 已恢复默认'); renderDash(); }
+      else toast(j.msg || '操作失败');
+    };
+  }
+
   async function renderDash() {
     app.innerHTML = `<div class="wrap"><div class="card"><p class="muted">⏳ 正在从云端读取数据…</p></div></div>`;
+    const cj = await call('/config');
+    if (cj.ok) gameCfg = cj.config;
     const j = await call('/save');
     if (j._status === 401) {
       localStorage.removeItem(PK); sess = null;
@@ -116,9 +254,11 @@
               <input type="file" id="file-import" accept=".json" style="display:none">
             </div>
           </div>
+          ${configCardHtml()}
         </div>`;
       $('btn-logout').onclick = logout;
       bindImport();
+      bindConfigCard();
       return;
     }
 
@@ -155,6 +295,7 @@
             <input type="file" id="file-import" accept=".json" style="display:none">
           </div>
         </div>
+        ${configCardHtml()}
         <div class="card"><h3>✨ 孩子的作品集（最近20篇）</h3>${writingsHtml}</div>
         <div class="card"><h3>⚙️ 账号</h3>
           <div class="row">
@@ -181,6 +322,7 @@
     };
     $('btn-export').onclick = exportSave;
     bindImport();
+    bindConfigCard();
     $('btn-chpw').onclick = changeParentPw;
     $('btn-rspw').onclick = resetGamePw;
   }

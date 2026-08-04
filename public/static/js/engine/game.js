@@ -4,8 +4,33 @@
 (function () {
   let S = null; // 当前状态
 
+  /* ---------- 家长可配置规则（云端下发，未设置用默认值） ---------- */
+  const DEFAULT_CFG = {
+    grade: null,              // null=跟随游戏内 S.grade；家长设置后强制
+    dailyLimit: 50,           // 每位居民每天最多提问
+    rewardBase: 2,            // 答对基础奖励
+    rewardPerLevel: 1,        // 每级加成（奖励 = base + level*perLevel）
+    readingReward: 20,        // 跟读通过奖励
+    maxCreatePerDay: 2,       // 每天创作题上限
+    subjectWeights: null,     // null=用内置 SUBJECT_WEIGHTS
+    gifts: null               // null=用 CATALOG.GIFTS
+  };
+  let CFG = { ...DEFAULT_CFG };
+
   const G = {
     get state() { return S; },
+    get config() { return CFG; },
+
+    /* 云端配置下发（cloud.js 调用）：只覆盖白名单键 */
+    applyConfig(remote) {
+      CFG = { ...DEFAULT_CFG, ...(remote || {}) };
+      if (S && CFG.grade != null && S.grade !== CFG.grade) {
+        S.grade = CFG.grade;
+        this.save();
+      }
+    },
+    /* 当前生效的礼物档位表 */
+    giftTable() { return (CFG.gifts && CFG.gifts.length) ? CFG.gifts : CATALOG.GIFTS; },
 
     init() {
       S = GameState.load();
@@ -109,11 +134,11 @@
     },
 
     /* ---------- 每日问题 ---------- */
-    DAILY_LIMIT: 50,   // 每位居民每天最多提问 50 道
-    // 科目权重：偏向 英语/科学/通识
+    get DAILY_LIMIT() { return CFG.dailyLimit; },   // 每位居民每天最多提问（家长可配）
+    // 科目权重：偏向 英语/科学/通识（家长可配）
     SUBJECT_WEIGHTS: { english: 30, science: 25, general: 25, math: 12, chinese: 8 },
     rollSubject() {
-      const W = this.SUBJECT_WEIGHTS;
+      const W = CFG.subjectWeights || this.SUBJECT_WEIGHTS;
       const total = Object.values(W).reduce((a, b) => a + b, 0);
       let r = Math.random() * total;
       for (const [s, w] of Object.entries(W)) { r -= w; if (r < 0) return s; }
@@ -169,7 +194,7 @@
         }
       }
       // ③ 语文科目：一定概率出“小小作家”创作题（每天最多 2 道）
-      if (dq.subject === 'chinese' && (S.createdToday || 0) < 2 && Math.random() < 0.35 && Questions.drawCreative) {
+      if (dq.subject === 'chinese' && (S.createdToday || 0) < CFG.maxCreatePerDay && Math.random() < 0.35 && Questions.drawCreative) {
         const exclude = S.recentQuestions.concat(S.mastered || []);
         const cq = Questions.drawCreative(exclude);
         if (cq) return cq;
@@ -256,8 +281,8 @@
         r.xp++;
         result.joyDelta = 2;
         S.joy = Math.min(100, S.joy + 2);
-        // 答对小奖励金
-        result.moneyBonus = 2 + r.level;
+        // 答对小奖励金（家长可配：基础 + 等级加成）
+        result.moneyBonus = CFG.rewardBase + r.level * CFG.rewardPerLevel;
         S.money += result.moneyBonus;
         // 升级判定
         const need = CATALOG.xpNeeded(r.level);
@@ -267,8 +292,8 @@
           result.newCareer = CATALOG.CAREERS[r.level - 1];
           this.pushLog(`${r.name} 升到 ${r.level} 级，成为「${result.newCareer.title}」！`);
         }
-        // 礼物判定（达到streak档位且未领取）
-        for (const g of CATALOG.GIFTS) {
+        // 礼物判定（达到streak档位且未领取；礼物表家长可配）
+        for (const g of this.giftTable()) {
           if (r.streak >= g.streak && !r.claimedGifts.includes(g.streak)) {
             r.claimedGifts.push(g.streak);
             const gift = { name: g.name, icon: g.icon, desc: g.desc, from: r.name, day: S.day, claimed: false };
@@ -323,7 +348,7 @@
     approveReading() {
       if (!S.reading || S.reading.status !== 'pending') return { ok: false, msg: '没有待审批的跟读' };
       S.reading.status = 'approved';
-      const reward = 20;
+      const reward = CFG.readingReward;
       S.money += reward;
       S.joy = Math.min(100, S.joy + 5);
       this.pushLog(`家长确认跟读完成！奖励 ${reward} 元 + 快乐值 +5`);

@@ -40,6 +40,12 @@
     if (e.detail.state === 'logout') UI.toast('☁️ 登录已过期，进度暂存本机；刷新页面重新登录后会自动同步', 'bad');
   });
 
+  /* 家长在后台改了游戏规则 → 实时生效并提示孩子 */
+  document.addEventListener('cloud-config', () => {
+    UI.toast('🎛️ 爸爸妈妈更新了游戏规则，已生效！', 'good');
+    UI.refreshTop();
+  });
+
   /* 家长后台（/admin 另一标签页）改了存档 → 本页自动刷新同步 */
   window.addEventListener('storage', (e) => {
     if (e.key === GameState.SAVE_KEY && e.newValue) {
