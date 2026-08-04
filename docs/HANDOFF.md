@@ -1,7 +1,7 @@
 # 技术交接文档（Agent Handoff）
 
 > 目的：任何新接手的 Agent / 开发者，只读本文档 + README 即可完整理解项目现状、关键约定与待办。
-> 最后更新：2026-08-04（main @ main HEAD，v3.8（家长后台游戏规则配置，实时下发））
+> 最后更新：2026-08-04（main @ main HEAD，v3.9（题库扩容：语文半生成器 + 科学/通识/判断题扩充））
 > ⚠️ **文档更新规约（对所有 Agent 强制）**：每次功能变更后，必须同步更新 ①本文档（模块地图/版本演进/待办/坑）②README（功能清单/数据架构/最后更新行）③本头部的提交号。这是用户明确要求，目的是任何模型可无缝接手。
 
 ---
@@ -189,3 +189,28 @@ node tests/e2e/admintest.mjs                          # v3.6 家长后台全流�
 1. 部署后全球边缘传播需 ~20s，紧接部署就 curl 新接口可能打到旧版本报 Internal Server Error，等待重试即可
 2. 孩子端"实时"=30s 轮询（fetchConfig），测试里用 `Cloud.fetchConfig()` 手动触发等价验证
 3. config 为 NULL/空对象 = 全默认；applyConfig 用 DEFAULT_CFG 兜底展开，前端不怕缺键
+
+
+## v3.9 题库扩容（语文半生成器 + 科学/通识扩充）
+
+### 功能
+- 新增 `questions-data4.js`（必须在 questions.js 之前加载，index.tsx 已挂两处引用之一——主页；/admin 不需要）：
+  1. **语文半生成器 `window.ChineseGen`**：7 类题型由数据表组合生成——近义词(45对)/反义词(40对)/量词搭配(40组)/成语补全+成语释义(40条)/古诗接句(36联)/多音字(24组)，约 225+ 道唯一题
+  2. **科学静态题** +35（g3 25 + g4 10）、**通识静态题** +33（g3 25 + g4 8），合并进 QUESTION_BANK（沿用全库按题面去重）
+  3. **判断题扩充 `window.JUDGE_BANK_EXT`**：science +10 / general +10，由 questions.js 加载时合并进内部 JUDGE_BANK（按题面去重）
+- `questions.js` 抽题逻辑：语文 55% 先走 ChineseGen 生成器；语文静态题耗尽时回退生成器（8 次重试）再走英语词表/数学兜底
+
+### 扩容后规模
+静态题 442 → **485**（chinese 56 / english 98 / science 160 / general 171）+ ChineseGen ~225 唯一生成题 + 英语词表生成器（上千）+ 数学纯生成（无限）+ 判断题 36 条。语文实测连抽 200 道唯一 115+。
+
+### E2E
+`tests/e2e/banktest.mjs`：data4 加载/生成器抽题唯一性/判断题合并命中/五科各50道无异常/UI 弹窗渲染/无控制台报错，全部通过；quiztest/v34test/configtest 回归通过。
+
+### 坑
+1. banktest 里 cloudLogin 必须先 `pg.goto(BASE)` 再调用（helper 内部用相对路径 fetch，需要 origin）
+2. Playwright 浏览器用 `chromium.launch()`（走 ~/.cache/ms-playwright），不要指定 executablePath
+3. ChineseGen 干扰项已人工保证"安全"（不与正确项近义/反义/可搭配），新增词条时须遵守此规则，否则会出现多个可选正确答案
+
+## v4.0 规划（已与家长确认，等待美术资产）
+- 家长自行生成美术：先重绘 ground_grass/ground_grass2/road_tile/road_crosswalk（512×256 等距菱形铺满），再按清单生成 河流/铁轨/桥梁地形砖 + 火车5/船5/飞机6 贴图（详见 turn-12 对话内清单，命名 river_tile/river_bend/rail_tile/rail_curve/rail_cross/bridge_road/bridge_rail/veh_steam 等）
+- 玩法：地形层 S.terrain（grass/river/rail）；扩地二选一（草地/水域）；铁轨可铺设（≥15 建筑解锁）；火车沿轨/船在水/飞机停机+飞行贴图（复用 cars-on-road 巡路模式）；旧档迁移自动生成不压建筑的河流

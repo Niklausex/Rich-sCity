@@ -379,6 +379,17 @@
     ]
   };
 
+  // 合并 questions-data4.js 提供的判断题扩充（按题面去重）
+  (function mergeJudgeExt() {
+    const EXT = window.JUDGE_BANK_EXT;
+    if (!EXT) return;
+    for (const subj in EXT) {
+      const base = JUDGE_BANK[subj] = JUDGE_BANK[subj] || [];
+      const seen = new Set(base.map(x => x.q));
+      for (const item of EXT[subj]) if (!seen.has(item.q)) { base.push(item); seen.add(item.q); }
+    }
+  })();
+
   /* ============ 抽题主入口 ============ */
   const SUBJECTS = ['math', 'chinese', 'english', 'science', 'general'];
   const SUBJECT_NAMES = { math: '数学', chinese: '语文', english: '英语', science: '科学', general: '通识' };
@@ -416,6 +427,11 @@
     if (subject === 'english' && Math.random() < 0.2) {
       const lq = genListenChoice(g, recent);
       if (lq) { lq.subject = subject; return lq; }
+    }
+    // 语文：55% 走生成器（近反义词/量词/成语/古诗/多音字，可产出数百道不重复题）
+    if (subject === 'chinese' && window.ChineseGen && Math.random() < 0.55) {
+      const cq = window.ChineseGen.draw(g, recent);
+      if (cq) { cq.subject = subject; return cq; }
     }
     // 语文：创作题由 game.js 层控制频率后调用 drawCreative()，不在这里抽
 
@@ -474,6 +490,10 @@
           for (let t = 0; t < 5 && !q; t++) q = genVocabChoice(g, recent);
         }
         if (!q) q = drawChoiceFromBank(subject, g, recent);
+        // 语文静态题耗尽 → 回退到语文生成器
+        if (!q && subject === 'chinese' && window.ChineseGen) {
+          for (let t = 0; t < 8 && !q; t++) q = window.ChineseGen.draw(g, recent);
+        }
         // 静态题库耗尽 → 词汇生成器多试几次 → 最后才用数学生成器（带排除重试）
         if (!q) for (let t = 0; t < 8 && !q; t++) q = genVocabChoice(g, recent);
         if (!q) {
