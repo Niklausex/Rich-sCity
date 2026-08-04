@@ -846,6 +846,7 @@
   }
 
   function onUp(e) {
+    if (!Game.state) return; // 登录门期间游戏尚未初始化
     canvas.classList.remove('grabbing');
     const wasDrag = dragMoved;
     dragging = false; dragMoved = false;

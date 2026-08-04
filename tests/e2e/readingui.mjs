@@ -1,10 +1,12 @@
 import { chromium } from 'playwright-core';
+import { cloudLogin } from './_cloudlogin.mjs';
 const b = await chromium.launch();
 const pg = await b.newPage({ viewport: { width: 1280, height: 900 } });
 const errs = [];
 pg.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
 await pg.goto('http://localhost:3000', { waitUntil: 'networkidle' });
 await pg.evaluate(() => { localStorage.clear(); });
+await cloudLogin(pg);
 await pg.reload({ waitUntil: 'networkidle' });
 await pg.evaluate(() => { document.querySelectorAll('.modal-overlay').forEach(m => m.remove()); });
 await pg.evaluate(() => UI.openPanel('reading'));

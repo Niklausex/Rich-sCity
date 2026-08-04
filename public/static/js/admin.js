@@ -1,15 +1,20 @@
 /* ============================================================
- * 家长后台（/admin 独立页面）
- *  - 用户名+密码登录（首次访问设置账号；SHA-256+盐 存 localStorage）
- *  - 与游戏同源共享 localStorage 存档：审批跟读 / 作品集 / 学习概况
- *  - 存档管理：导出 / 导入 / 查看信息
- *  - 忘记密码：两位数乘法验证后重置账号
+ * 家长后台（/admin 独立页面）· 云端版 v3.7
+ *  - 用家庭账号 + 家长密码登录（云端验证，任何设备都能登录）
+ *  - 数据全部来自云存档（GET /api/save），审批走服务端接口
+ *  - 存档管理：从云端导出 / 导入并推送云端
+ *  - 账号管理：修改家长密码 / 重置孩子的游戏密码
  * ============================================================ */
 (function () {
-  const AUTH_KEY = 'richs_city_admin_auth';
-  const SESSION_KEY = 'richs_city_admin_session';
+  const PK = 'richs_city_parent'; // { token, username }
   const app = document.getElementById('app');
   const $ = (id) => document.getElementById(id);
+
+  let sess = null;   // { token, username }
+  let cloud = null;  // { save, day, money, updatedAt, device } | null（云端为空）
+
+  function loadSess() { try { sess = JSON.parse(localStorage.getItem(PK)); } catch (e) { sess = null; } return sess; }
+  function saveSess() { localStorage.setItem(PK, JSON.stringify(sess)); }
 
   function toast(msg) {
     const t = $('toast');
@@ -18,104 +23,56 @@
     toast._tm = setTimeout(() => { t.style.display = 'none'; }, 2600);
   }
 
-  /* ---------- 密码哈希（Web Crypto SHA-256 + 随机盐） ---------- */
-  async function hashPw(pw, salt) {
-    const data = new TextEncoder().encode(salt + '::' + pw);
-    const buf = await crypto.subtle.digest('SHA-256', data);
-    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-  function getAuth() {
-    try { return JSON.parse(localStorage.getItem(AUTH_KEY)); } catch (e) { return null; }
-  }
-  function loggedIn() { return sessionStorage.getItem(SESSION_KEY) === '1'; }
-
-  /* ---------- 游戏存档（只读加载，避免误建新档） ---------- */
-  let hasSave = false;
-  function loadGame() {
-    hasSave = !!localStorage.getItem(GameState.SAVE_KEY);
-    if (hasSave) Game.init(); // 有存档才 init（无存档时 init 会新建存档，必须避免）
-  }
-
-  /* ================= 视图：首次设置账号 ================= */
-  function renderSetup() {
-    app.innerHTML = `
-      <div class="login-box">
-        <div class="login-logo">🔐</div>
-        <div class="login-title">家长后台 · 首次设置</div>
-        <div class="login-sub">设置一个只有爸爸妈妈知道的账号密码（保存在本机浏览器）</div>
-        <div class="card">
-          <label>用户名</label>
-          <input id="su-user" maxlength="20" placeholder="例如：papa">
-          <label style="display:block;margin-top:12px">密码（至少4位）</label>
-          <input id="su-pw" type="password" maxlength="30" placeholder="输入密码">
-          <label style="display:block;margin-top:12px">再输一遍密码</label>
-          <input id="su-pw2" type="password" maxlength="30" placeholder="确认密码">
-          <div class="err" id="su-err"></div>
-          <button class="btn btn-blue" id="btn-setup" style="width:100%;justify-content:center;margin-top:6px"><i class="fas fa-check"></i> 创建账号并进入</button>
-        </div>
-        <p class="muted" style="text-align:center;margin-top:14px"><a class="link" href="/">← 返回游戏</a></p>
-      </div>`;
-    $('btn-setup').onclick = async () => {
-      const user = $('su-user').value.trim();
-      const pw = $('su-pw').value, pw2 = $('su-pw2').value;
-      if (!user) return $('su-err').textContent = '请输入用户名';
-      if (pw.length < 4) return $('su-err').textContent = '密码至少4位';
-      if (pw !== pw2) return $('su-err').textContent = '两次密码不一致';
-      const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
-      const hash = await hashPw(pw, salt);
-      localStorage.setItem(AUTH_KEY, JSON.stringify({ user, salt, hash }));
-      sessionStorage.setItem(SESSION_KEY, '1');
-      toast('✅ 账号创建成功');
-      renderDash();
-    };
+  async function call(path, opt = {}) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (sess && sess.token) headers['Authorization'] = 'Bearer ' + sess.token;
+    const res = await fetch('/api' + path, { ...opt, headers });
+    const j = await res.json().catch(() => ({ ok: false, msg: '网络异常' }));
+    j._status = res.status;
+    return j;
   }
 
   /* ================= 视图：登录 ================= */
   function renderLogin() {
-    const auth = getAuth();
     app.innerHTML = `
       <div class="login-box">
         <div class="login-logo">🏛️</div>
         <div class="login-title">Rich's City · 家长后台</div>
-        <div class="login-sub">请用家长账号登录</div>
+        <div class="login-sub">用家庭账号的<b>家长密码</b>登录（不是孩子的游戏密码）</div>
         <div class="card">
-          <label>用户名</label>
-          <input id="lg-user" maxlength="20" autocomplete="username">
-          <label style="display:block;margin-top:12px">密码</label>
+          <label>家庭账号用户名</label>
+          <input id="lg-user" maxlength="20" autocomplete="username" placeholder="和孩子游戏里的用户名相同">
+          <label style="display:block;margin-top:12px">家长密码</label>
           <input id="lg-pw" type="password" maxlength="30" autocomplete="current-password">
           <div class="err" id="lg-err"></div>
           <button class="btn btn-blue" id="btn-login" style="width:100%;justify-content:center;margin-top:6px"><i class="fas fa-right-to-bracket"></i> 登录</button>
-          <p style="text-align:center;margin-top:12px"><a class="link" id="lnk-forgot">忘记密码？</a></p>
+          <p class="muted" style="margin-top:12px;font-size:12px">还没有家庭账号？在游戏首页可以创建（用户名 + 游戏密码 + 家长密码）。</p>
         </div>
         <p class="muted" style="text-align:center;margin-top:14px"><a class="link" href="/">← 返回游戏</a></p>
       </div>`;
     const doLogin = async () => {
       const user = $('lg-user').value.trim(), pw = $('lg-pw').value;
-      const h = await hashPw(pw, auth.salt);
-      if (user === auth.user && h === auth.hash) {
-        sessionStorage.setItem(SESSION_KEY, '1');
-        renderDash();
-      } else {
-        $('lg-err').textContent = '用户名或密码不对';
-      }
+      if (!user || !pw) return $('lg-err').textContent = '请输入用户名和家长密码';
+      $('btn-login').disabled = true;
+      const j = await call('/auth/login', { method: 'POST', body: JSON.stringify({ username: user, password: pw, kind: 'parent' }) });
+      $('btn-login').disabled = false;
+      if (!j.ok) return $('lg-err').textContent = j.msg || '登录失败';
+      sess = { token: j.token, username: j.username };
+      saveSess();
+      renderDash();
     };
     $('btn-login').onclick = doLogin;
     $('lg-pw').onkeydown = (e) => { if (e.key === 'Enter') doLogin(); };
-    $('lnk-forgot').onclick = () => {
-      const a = 12 + Math.floor(Math.random() * 78), b = 12 + Math.floor(Math.random() * 78);
-      const ans = prompt(`重置账号需要家长验证：${a} × ${b} = ?`);
-      if (parseInt(ans, 10) === a * b) {
-        localStorage.removeItem(AUTH_KEY);
-        toast('已重置，请重新设置账号');
-        renderSetup();
-      } else if (ans !== null) {
-        toast('答案不对哦');
-      }
-    };
   }
 
   /* ================= 视图：后台主页 ================= */
   function esc(s) { return String(s).replace(/</g, '&lt;'); }
+  function grades(g) { return ({ 3: '三年级', 4: '四年级', 5: '五年级', 6: '六年级' })[g] || g + '年级'; }
+  function fmtTime(ms) {
+    if (!ms) return '';
+    const d = new Date(ms), pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
 
   function readingCardHtml(S) {
     const RA = window.READ_ALOUD || [];
@@ -132,16 +89,28 @@
     return `<p class="muted">孩子还没点"我完成跟读啦"，暂无待确认项。</p>`;
   }
 
-  function renderDash() {
-    loadGame();
-    const auth = getAuth();
-    if (!hasSave) {
+  async function renderDash() {
+    app.innerHTML = `<div class="wrap"><div class="card"><p class="muted">⏳ 正在从云端读取数据…</p></div></div>`;
+    const j = await call('/save');
+    if (j._status === 401) {
+      localStorage.removeItem(PK); sess = null;
+      toast('登录已过期，请重新登录');
+      return renderLogin();
+    }
+    if (!j.ok) {
+      app.innerHTML = `<div class="wrap"><div class="card"><h3>📡 网络异常</h3><p>连不上云端服务，请检查网络后<a class="link" id="lnk-retry">重试</a>。</p></div></div>`;
+      $('lnk-retry').onclick = renderDash;
+      return;
+    }
+    cloud = j.save ? j : null;
+
+    if (!cloud) {
       app.innerHTML = `
-        <div class="topbar"><h1>🏛️ Rich's City 家长后台</h1><span class="who">👤 ${esc(auth.user)}</span>
+        <div class="topbar"><h1>🏛️ Rich's City 家长后台</h1><span class="who">👤 ${esc(sess.username)}</span>
           <button class="btn btn-gray" id="btn-logout" style="padding:6px 12px;font-size:13px">退出</button></div>
         <div class="wrap">
-          <div class="card"><h3>📭 还没有游戏存档</h3>
-            <p>这台浏览器上还没有孩子的游戏进度。请先<a class="link" href="/">打开游戏</a>玩一会儿，或在下面导入之前导出的存档文件。</p>
+          <div class="card"><h3>📭 云端还没有存档</h3>
+            <p>孩子还没在这个家庭账号下玩过。让孩子<a class="link" href="/">打开游戏</a>登录后玩一会儿，进度会自动同步上云；或在下面导入之前导出的存档文件。</p>
             <div class="row">
               <button class="btn btn-blue" id="btn-import"><i class="fas fa-file-import"></i> 导入存档文件</button>
               <input type="file" id="file-import" accept=".json" style="display:none">
@@ -149,20 +118,21 @@
           </div>
         </div>`;
       $('btn-logout').onclick = logout;
-      bindImport(() => renderDash());
+      bindImport();
       return;
     }
-    const S = Game.state;
+
+    const S = cloud.save;
     const stats = S.stats || {};
     const ws = (S.writings || []).slice().reverse().slice(0, 20);
     const writingsHtml = ws.length
       ? ws.map(w => `<div class="writing"><div class="w-title">📝 《${esc(w.title)}》<span class="w-day"> · 第${w.day}天</span></div><div class="w-text">${esc(w.text)}</div></div>`).join('')
       : '<p class="muted">还没有创作作品。语文题里会随机出现"小小作家"创作题（每天最多2道）。</p>';
-    const saveRaw = localStorage.getItem(GameState.SAVE_KEY) || '';
-    const saveKb = (saveRaw.length / 1024).toFixed(1);
+    const saveKb = (JSON.stringify(S).length / 1024).toFixed(1);
 
     app.innerHTML = `
-      <div class="topbar"><h1>🏛️ Rich's City 家长后台</h1><span class="who">👤 ${esc(auth.user)}</span>
+      <div class="topbar"><h1>🏛️ Rich's City 家长后台</h1><span class="who">👤 ${esc(sess.username)}</span>
+        <button class="btn btn-gray" id="btn-refresh" style="padding:6px 12px;font-size:13px"><i class="fas fa-rotate"></i> 刷新</button>
         <button class="btn btn-gray" id="btn-logout" style="padding:6px 12px;font-size:13px">退出</button></div>
       <div class="wrap">
         <div class="card"><h3>🎙️ 今日跟读审批</h3><div id="reading-slot">${readingCardHtml(S)}</div></div>
@@ -176,66 +146,71 @@
             <div class="stat-item"><b>${(S.writings || []).length}</b><span>创作作品</span></div>
           </div>
         </div>
-        <div class="card"><h3>💾 存档管理</h3>
-          <p>当前存档：第 <b>${S.day}</b> 天 · 💰${S.money} 元 · ${S.buildings.length} 座建筑 · 大小 ${saveKb} KB<br>
-          <span class="muted">游戏会自动保存在本机浏览器。建议定期导出存档文件备份，防止清理浏览器数据导致丢失。</span></p>
+        <div class="card"><h3>☁️ 云存档管理</h3>
+          <p>云端存档：第 <b>${S.day}</b> 天 · 💰${S.money} 元 · ${S.buildings.length} 座建筑 · 大小 ${saveKb} KB<br>
+          <span class="muted">最后同步：${fmtTime(cloud.updatedAt)}（来自 ${esc(cloud.device || '未知设备')}）。进度自动同步云端，换设备登录即恢复；导出文件可作额外备份。</span></p>
           <div class="row">
             <button class="btn btn-green" id="btn-export"><i class="fas fa-file-export"></i> 导出存档文件</button>
-            <button class="btn btn-blue" id="btn-import"><i class="fas fa-file-import"></i> 导入存档文件</button>
+            <button class="btn btn-blue" id="btn-import"><i class="fas fa-file-import"></i> 导入并覆盖云端</button>
             <input type="file" id="file-import" accept=".json" style="display:none">
           </div>
         </div>
         <div class="card"><h3>✨ 孩子的作品集（最近20篇）</h3>${writingsHtml}</div>
         <div class="card"><h3>⚙️ 账号</h3>
           <div class="row">
-            <button class="btn" id="btn-chpw"><i class="fas fa-key"></i> 修改密码</button>
+            <button class="btn" id="btn-chpw"><i class="fas fa-key"></i> 修改家长密码</button>
+            <button class="btn" id="btn-rspw"><i class="fas fa-child"></i> 重置孩子的游戏密码</button>
             <a class="btn" href="/"><i class="fas fa-gamepad"></i> 返回游戏</a>
           </div>
         </div>
       </div>`;
     $('btn-logout').onclick = logout;
+    $('btn-refresh').onclick = renderDash;
     const ab = $('btn-approve');
-    if (ab) ab.onclick = () => {
-      const res = Game.approveReading();
-      if (res.ok) {
-        toast(`✅ 已确认！奖励 ${res.reward} 元已发放`);
-        $('reading-slot').innerHTML = readingCardHtml(Game.state);
+    if (ab) ab.onclick = async () => {
+      ab.disabled = true;
+      const r = await call('/parent/approve-reading', { method: 'POST' });
+      if (r.ok) {
+        toast(`✅ 已确认！奖励 ${r.reward} 元已发放（云端已更新）`);
+        cloud = { ...cloud, save: r.save, updatedAt: r.updatedAt };
+        $('reading-slot').innerHTML = readingCardHtml(r.save);
       } else {
-        toast(res.msg || '操作失败');
+        ab.disabled = false;
+        toast(r.msg || '操作失败');
       }
     };
     $('btn-export').onclick = exportSave;
-    bindImport(() => renderDash());
-    $('btn-chpw').onclick = changePw;
+    bindImport();
+    $('btn-chpw').onclick = changeParentPw;
+    $('btn-rspw').onclick = resetGamePw;
   }
 
-  function grades(g) { return ({ 3: '三年级', 4: '四年级', 5: '五年级', 6: '六年级' })[g] || g + '年级'; }
-
   function logout() {
-    sessionStorage.removeItem(SESSION_KEY);
+    call('/auth/logout', { method: 'POST' }).catch(() => {});
+    localStorage.removeItem(PK); sess = null;
     renderLogin();
   }
 
-  async function changePw() {
-    const auth = getAuth();
-    const old = prompt('请输入当前密码：');
+  async function changeParentPw() {
+    const old = prompt('请输入当前家长密码：');
     if (old === null) return;
-    if (await hashPw(old, auth.salt) !== auth.hash) return toast('当前密码不对');
-    const pw = prompt('请输入新密码（至少4位）：');
+    const pw = prompt('请输入新的家长密码（至少4位，不能和游戏密码相同）：');
     if (pw === null) return;
-    if (pw.length < 4) return toast('密码至少4位');
-    const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    auth.salt = salt;
-    auth.hash = await hashPw(pw, salt);
-    localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
-    toast('✅ 密码已修改');
+    const j = await call('/parent/change-password', { method: 'POST', body: JSON.stringify({ oldPassword: old, newPassword: pw }) });
+    toast(j.ok ? '✅ 家长密码已修改' : (j.msg || '修改失败'));
   }
 
-  /* ---------- 存档导出/导入（与游戏内共用同一格式） ---------- */
+  async function resetGamePw() {
+    const pw = prompt('孩子忘记游戏密码了？输入新的游戏密码（至少4位）：\n（重置后孩子的设备需要用新密码重新登录）');
+    if (pw === null) return;
+    const j = await call('/parent/reset-game-password', { method: 'POST', body: JSON.stringify({ newPassword: pw }) });
+    toast(j.ok ? '✅ 游戏密码已重置，请告诉孩子新密码' : (j.msg || '重置失败'));
+  }
+
+  /* ---------- 存档导出/导入（与游戏内共用同一格式，数据源为云端） ---------- */
   function exportSave() {
-    const raw = localStorage.getItem(GameState.SAVE_KEY);
-    if (!raw) return toast('没有存档可导出');
-    const s = JSON.parse(raw);
+    if (!cloud || !cloud.save) return toast('云端没有存档可导出');
+    const s = cloud.save;
     const blob = new Blob([JSON.stringify({ _game: 'richs_city', _ver: 1, _exportedAt: new Date().toISOString(), save: s }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     const d = new Date(), pad = (n) => String(n).padStart(2, '0');
@@ -246,7 +221,7 @@
     toast('📦 存档已导出，请保存好文件');
   }
 
-  function bindImport(onDone) {
+  function bindImport() {
     const btn = $('btn-import'), file = $('file-import');
     if (!btn || !file) return;
     btn.onclick = () => file.click();
@@ -254,18 +229,18 @@
       const f = file.files[0];
       if (!f) return;
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         try {
           const data = JSON.parse(reader.result);
           const s = data && data._game === 'richs_city' ? data.save : data; // 兼容裸存档 JSON
           if (!s || !Array.isArray(s.buildings) || !Array.isArray(s.residents) || typeof s.day !== 'number') {
             return toast('❌ 这不是有效的 Rich\'s City 存档文件');
           }
-          if (localStorage.getItem(GameState.SAVE_KEY) &&
-              !confirm(`导入将覆盖当前进度（第${Game.state ? Game.state.day : '?'}天）！\n导入的存档：第${s.day}天 · 💰${s.money}元\n确定继续吗？`)) return;
-          localStorage.setItem(GameState.SAVE_KEY, JSON.stringify(s));
-          toast('✅ 存档导入成功');
-          setTimeout(() => location.reload(), 800); // 重载让 Game.init 走 migrate
+          if (cloud && cloud.save &&
+              !confirm(`导入将覆盖云端进度（第${cloud.save.day}天 · 💰${cloud.save.money}元）！\n导入的存档：第${s.day}天 · 💰${s.money}元\n确定继续吗？`)) return;
+          const j = await call('/save', { method: 'PUT', body: JSON.stringify({ save: s, force: true, device: '后台导入' }) });
+          if (j.ok) { toast('✅ 存档已导入并同步到云端'); renderDash(); }
+          else toast(j.msg || '云端写入失败');
         } catch (e) {
           toast('❌ 文件解析失败，不是有效的存档');
         }
@@ -273,12 +248,11 @@
       reader.readAsText(f);
       file.value = '';
     };
-    if (onDone) onDone._bound = true;
   }
 
   /* ================= 启动 ================= */
-  if (!getAuth()) renderSetup();
-  else if (loggedIn()) renderDash();
+  loadSess();
+  if (sess && sess.token) renderDash();
   else renderLogin();
 
   // 供 E2E 测试使用

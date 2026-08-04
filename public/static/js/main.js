@@ -2,11 +2,11 @@
  * 入口：初始化游戏 → 渲染 → 绑定全局按钮
  * ============================================================ */
 (function () {
-  const isNew = Game.init();
   Assets.preloadAll(); // 后台预加载全部美术贴图
 
-  // 显示游戏
-  setTimeout(() => {
+  // 云登录门（注册/登录 + 云存档协调）完成后才初始化游戏
+  Cloud.ensureLogin(() => {
+    const isNew = Game.init();
     document.getElementById('loading-screen').style.display = 'none';
     document.getElementById('game-root').style.display = 'grid';
     CityMap.resize();
@@ -14,18 +14,31 @@
     UI.refreshTop();
 
     if (isNew) {
+      Game.save(); // 新建档立即上云，其他设备马上能看到
       showWelcome();
     } else {
       const pq = Game.pendingQuestions().length;
       if (pq) UI.toast(`👋 市长早上好！今天有 ${pq} 位居民有问题找你`, 'good');
     }
-  }, 900);
+  });
 
-  /* 顶栏保存按钮：立即保存 */
-  document.getElementById('btn-save-now').onclick = () => {
+  /* 顶栏保存按钮：立即保存（本地+云端） */
+  document.getElementById('btn-save-now').onclick = async () => {
     Game.save();
-    UI.toast('💾 已保存！进度安全啦', 'good');
+    if (Cloud.loggedIn) {
+      UI.toast('💾 已保存，正在同步云端…', 'good');
+      const ok = await Cloud.pushNow();
+      if (ok) UI.toast('☁️ 云端同步完成！换设备也不会丢', 'good');
+      else if (!Cloud.online) UI.toast('📴 网络不通，已存本机，联网后自动补传', 'bad');
+    } else {
+      UI.toast('💾 已保存在本机', 'good');
+    }
   };
+
+  /* 云同步状态提示：token 失效提醒重登 */
+  document.addEventListener('cloud-state', (e) => {
+    if (e.detail.state === 'logout') UI.toast('☁️ 登录已过期，进度暂存本机；刷新页面重新登录后会自动同步', 'bad');
+  });
 
   /* 家长后台（/admin 另一标签页）改了存档 → 本页自动刷新同步 */
   window.addEventListener('storage', (e) => {

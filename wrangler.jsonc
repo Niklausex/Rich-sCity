@@ -1,6 +1,13 @@
 {
-  "name": "webapp",
+  "name": "richs-city",
   "compatibility_date": "2024-01-01",
   "compatibility_flags": ["nodejs_compat"],
-  "pages_build_output_dir": "./dist"
+  "pages_build_output_dir": "./dist",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "richs-city-production",
+      "database_id": "c72195d8-80c9-4983-83f1-08ed56febcf0"
+    }
+  ]
 }

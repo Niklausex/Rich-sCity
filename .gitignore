@@ -11,3 +11,4 @@ dist/
 # 美术原始素材（体积大，不入库；压缩后的 webp 在 public/static/assets）
 art_inbox/*
 !art_inbox/README.md
+core

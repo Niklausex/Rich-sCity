@@ -492,9 +492,19 @@
         <p>现在的难度：<b>${grades.find(g => g[0] === S.grade)?.[1] || S.grade + '年级'}</b>，题目会随年级变难，知识范围也会扩大。</p>
         <div class="panel-tabs" style="margin-top:8px">${grades.map(g => `<button class="ptab ${S.grade === g[0] ? 'active' : ''}" data-grade="${g[0]}">${g[1]}</button>`).join('')}</div>
       </div></div>
+      <div class="card" style="background:#e7f5ff"><div class="grow">
+        <h4>☁️ 家庭账号（云存档）</h4>
+        <p>${window.Cloud && Cloud.loggedIn
+          ? `当前账号：<b>${Cloud.username}</b> · ${Cloud.online ? '🟢 云同步正常' : '📴 暂时离线（进度存本机，联网自动补传）'}<br>换任何设备打开游戏，登录这个账号就能接着玩。`
+          : '未登录云账号，进度只存在本机。刷新页面可登录/注册家庭账号。'}</p>
+        ${window.Cloud && Cloud.loggedIn ? `<div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-blue btn-small" id="btn-cloud-sync"><i class="fas fa-cloud-arrow-up"></i> 立即同步云端</button>
+          <button class="btn btn-small" id="btn-cloud-logout"><i class="fas fa-right-from-bracket"></i> 退出账号</button>
+        </div>` : ''}
+      </div></div>
       <div class="card"><div class="grow">
         <h4>💾 存档</h4>
-        <p>游戏自动保存在这台电脑的浏览器里，也可以随时手动保存。<br><b>建议定期导出存档文件备份</b>，防止清理浏览器数据导致丢失；换电脑时导入存档文件就能接着玩。</p>
+        <p>进度自动保存本机 + 自动同步云端（登录后）。也可以导出存档文件做额外备份。</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
           <button class="btn btn-green btn-small" id="btn-save-manual"><i class="fas fa-floppy-disk"></i> 立即保存</button>
           <button class="btn btn-blue btn-small" id="btn-save-export"><i class="fas fa-file-export"></i> 导出存档文件</button>
@@ -529,6 +539,18 @@
       const f = e.target.files[0];
       if (f) SaveIO.importSave(f, (ok, msg) => { toast(msg, ok ? 'good' : 'bad'); if (ok) setTimeout(() => location.reload(), 800); });
       e.target.value = '';
+    };
+    // 云端账号：立即同步 / 退出
+    const cs = $('btn-cloud-sync');
+    if (cs) cs.onclick = async () => {
+      Game.save();
+      const ok = await Cloud.pushNow();
+      toast(ok ? '☁️ 已同步到云端' : '📴 同步失败，联网后会自动重试', ok ? 'good' : 'bad');
+      renderSettings();
+    };
+    const cl = $('btn-cloud-logout');
+    if (cl) cl.onclick = () => {
+      if (confirm('退出后本机进度会清空（云端已保留），下次登录会自动拉回云存档。\n确定退出账号吗？')) Cloud.logout();
     };
   }
 

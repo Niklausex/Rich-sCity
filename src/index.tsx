@@ -1,7 +1,11 @@
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/cloudflare-workers'
+import api from './api'
 
-const app = new Hono()
+type Bindings = { DB: D1Database }
+const app = new Hono<{ Bindings: Bindings }>()
+
+app.route('/api', api)
 
 app.use('/static/*', serveStatic({ root: './public' }))
 
@@ -68,9 +72,6 @@ app.get('/admin', (c) => {
 <div id="toast"></div>
 <div id="app"></div>
 <script src="/static/js/data/questions-data3.js"></script>
-<script src="/static/js/data/catalog.js"></script>
-<script src="/static/js/engine/state.js"></script>
-<script src="/static/js/engine/game.js"></script>
 <script src="/static/js/admin.js"></script>
 </body>
 </html>`)
@@ -167,6 +168,7 @@ app.get('/', (c) => {
 <script src="/static/js/data/questions.js"></script>
 <script src="/static/js/data/catalog.js"></script>
 <script src="/static/js/engine/state.js"></script>
+<script src="/static/js/engine/cloud.js"></script>
 <script src="/static/js/engine/game.js"></script>
 <script src="/static/js/render/assets.js"></script>
 <script src="/static/js/render/map.js"></script>

@@ -1,7 +1,7 @@
 # 技术交接文档（Agent Handoff）
 
 > 目的：任何新接手的 Agent / 开发者，只读本文档 + README 即可完整理解项目现状、关键约定与待办。
-> 最后更新：2026-08-04（main @ 07aa564，v3.6）
+> 最后更新：2026-08-04（main @ main HEAD，v3.7（家庭账号+云存档+已部署 Cloudflare Pages））
 > ⚠️ **文档更新规约（对所有 Agent 强制）**：每次功能变更后，必须同步更新 ①本文档（模块地图/版本演进/待办/坑）②README（功能清单/数据架构/最后更新行）③本头部的提交号。这是用户明确要求，目的是任何模型可无缝接手。
 
 ---
@@ -132,3 +132,32 @@ node tests/e2e/admintest.mjs                          # v3.6 家长后台全流�
 - 跟读短文 `READ_ALOUD` 的 **title 是轮播锚点语义**（`(day-1)%15` 按下标轮播）：改内容可以，别增删/重排条目，否则老存档当天短文会跳变
 - 题目去重键统一走 `Game.qKey(q)`（=`q.qkey || q.q`）——新增题型若题面是通用文案必须给 `qkey`，否则会在 mastered/recent 里互相碰撞
 - 家长区解锁状态 `parentUnlocked` 是内存变量（刷新页面重新上锁），故意不落存档
+
+
+## v3.7 家庭账号 + 云存档 + 生产部署（本节为最新权威信息）
+
+### 部署信息（用户自己的 Cloudflare 账号，BYOK）
+- 生产 URL：https://richs-city.pages.dev （项目名 richs-city，production branch=main）
+- D1 数据库：richs-city-production，database_id `c72195d8-80c9-4983-83f1-08ed56febcf0`，binding `DB`
+- 迁移：`migrations/0001_cloud_save.sql`（families/saves/sessions），本地与远程均已 apply
+- 重新部署：`npm run build && npx wrangler pages deploy dist --project-name richs-city`
+- 远程迁移：`npx wrangler d1 migrations apply richs-city-production --remote`
+- 部署前必须先调用 setup_cloudflare_api_key（cf-byok-deploy skill），严禁 wrangler login
+
+### 新增文件
+- `src/api.ts` — 云 API：/api/auth/register|login|logout|me、GET/PUT /api/save（409 冲突检测 baseUpdatedAt/force）、POST /api/parent/approve-reading|change-password|reset-game-password。密码 SHA-256+随机盐，token 128bit，TTL 90 天
+- `public/static/js/engine/cloud.js` — window.Cloud：ensureLogin 登录门（#cloud-gate，注册=用户名+游戏密码+家长密码）、syncOnBoot 冲突协调（天数新者优先+confirm）、game-saved 事件 1.5s 防抖推送、离线 30s 重试、visibilitychange 抢救推送。localStorage key `richs_city_cloud` {token,username,baseUpdatedAt}
+- `tests/e2e/_cloudlogin.mjs` — 测试辅助：注册临时账号+写 richs_city_cloud 跳过登录门
+- `tests/e2e/cloudtest.mjs` — 云同步全流程 E2E（注册门/自动推送/设置卡片/跨设备双 context/409 冲突两分支/退出）
+
+### 改动文件
+- admin.js 全量重写为云端版：家长密码登录（kind='parent'）、数据源 GET /api/save、审批走服务端、可改家长密码/重置游戏密码、导入=PUT force 覆盖云端；旧 localStorage 本地账号已废弃。/admin 页脚本精简为 data3+admin.js
+- main.js：Cloud.ensureLogin 包裹 Game.init；panels.js：设置面板☁️家庭账号卡片+同步/退出按钮
+- state.js save() 派发 game-saved；render/map.js onUp 增加 `if(!Game.state) return` 守卫（登录门期间点击画布曾报 null.buildings）
+- ecosystem.config.cjs：`--d1=DB=名称` 格式无效（导致 no such table），正确做法是只用 `--local`，绑定自动读 wrangler.jsonc
+
+### 坑（v3.7 新增）
+1. wrangler pages dev 的 --d1 不接受 `BINDING=name` 格式；wrangler.jsonc 已有 d1_databases 时无需 --d1 参数
+2. 所有 E2E 必须先过登录门：用 `_cloudlogin.mjs` 的 cloudLogin(pg) 后 reload；7 个旧测试已批量注入
+3. 一个家庭账号两个密码：游戏密码（孩子）/家长密码（后台），注册时强制不同；家长可在后台重置游戏密码（会踢掉所有 game token）
+4. Cloud.logout 会清 richs_city_cloud + 游戏存档并 reload（防止串档）

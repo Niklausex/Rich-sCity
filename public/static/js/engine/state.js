@@ -49,7 +49,11 @@
   CATALOG.OFFICE = { id: 'office_wood', cat: 'special', name: '市长办公室', icon: '🏛️', cost: 0, w: 2, h: 2, fl: 1.4, color: '#a8763a', desc: '一切开始的地方' };
 
   function save(state) {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch (e) { console.warn('保存失败', e); }
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+      // 通知云同步引擎（cloud.js 监听后防抖推送云端）
+      document.dispatchEvent(new CustomEvent('game-saved'));
+    } catch (e) { console.warn('保存失败', e); }
   }
 
   function load() {

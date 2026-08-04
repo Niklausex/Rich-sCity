@@ -1,5 +1,13 @@
 # Rich's City 🧱 乐高市长模拟游戏
 
+## v3.7 云端版（当前线上版本）
+- **生产地址**: https://richs-city.pages.dev （孩子游戏入口）
+- **家长后台**: https://richs-city.pages.dev/admin
+- **家庭账号**: 一个用户名 + 两个密码——游戏密码（孩子登录游戏）、家长密码（登录后台，注册时必须不同）
+- **云存档**: 进度自动同步 Cloudflare D1；换设备/换浏览器登录同一账号即恢复；冲突时以较新进度为准并弹窗确认
+- **家长后台功能**: 任何设备登录、审批跟读发奖（服务端直改云档）、学习概况、作品集、导出/导入覆盖云端、改家长密码、重置孩子游戏密码
+- **部署**: Cloudflare Pages（用户自有账号）+ D1 richs-city-production；`npm run build && npx wrangler pages deploy dist --project-name richs-city`
+
 ## 项目概览
 - **名称**: Rich's City
 - **目标**: 为小学三年级孩子打造的"寓教于乐"城市模拟经营游戏。孩子扮演市长，通过回答学科题目赚取城市收入，规划建设自己的乐高风格城市，从小村庄一路发展为超级城市。

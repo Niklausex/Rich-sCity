@@ -1,10 +1,13 @@
 import { chromium } from 'playwright-core';
+import { cloudLogin } from './_cloudlogin.mjs';
 const b = await chromium.launch();
 const pg = await b.newPage({ viewport: { width: 1400, height: 900 } });
 const errs = [];
 pg.on('console', m => { if (m.type()==='error') errs.push(m.text().slice(0,200)); });
 pg.on('pageerror', e => errs.push('PAGEERR: ' + String(e).slice(0,200)));
 await pg.goto('http://localhost:3000', { waitUntil: 'networkidle' });
+await cloudLogin(pg);
+await pg.reload({ waitUntil: 'networkidle' });
 await pg.waitForTimeout(2500);
 const res = await pg.evaluate(() => {
   const G = window.Game, S = G.state;

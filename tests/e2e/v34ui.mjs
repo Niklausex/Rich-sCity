@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { cloudLogin } from './_cloudlogin.mjs';
 
 const b = await chromium.launch({ headless: true });
 const page = await b.newPage({ viewport: { width: 1280, height: 800 } });
@@ -6,6 +7,8 @@ const errors = [];
 page.on('pageerror', e => errors.push(e.message.slice(0, 200)));
 
 await page.goto('http://localhost:3000', { waitUntil: 'networkidle' });
+await cloudLogin(page);
+await page.reload({ waitUntil: 'networkidle' });
 await page.waitForTimeout(2500);
 // 关闭开局欢迎弹窗
 await page.evaluate(() => { const o = document.getElementById('modal-overlay'); if (o) o.style.display = 'none'; });

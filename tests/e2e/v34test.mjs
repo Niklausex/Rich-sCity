@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { cloudLogin } from './_cloudlogin.mjs';
 
 const b = await chromium.launch({ headless: true });
 const page = await b.newPage();
@@ -8,6 +9,7 @@ page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message.slice(0, 200)));
 
 await page.goto('http://localhost:3000', { waitUntil: 'networkidle' });
 await page.evaluate(() => localStorage.clear());
+await cloudLogin(page);
 await page.reload({ waitUntil: 'networkidle' });
 await page.waitForTimeout(2500);
 
