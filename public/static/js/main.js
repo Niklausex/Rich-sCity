@@ -21,6 +21,20 @@
     }
   }, 900);
 
+  /* 顶栏保存按钮：立即保存 */
+  document.getElementById('btn-save-now').onclick = () => {
+    Game.save();
+    UI.toast('💾 已保存！进度安全啦', 'good');
+  };
+
+  /* 家长后台（/admin 另一标签页）改了存档 → 本页自动刷新同步 */
+  window.addEventListener('storage', (e) => {
+    if (e.key === GameState.SAVE_KEY && e.newValue) {
+      UI.toast('👨‍👩‍👦 家长后台更新了进度，正在同步…', 'good');
+      setTimeout(() => location.reload(), 1200);
+    }
+  });
+
   /* 睡觉按钮：进入新的一天 */
   document.getElementById('btn-sleep').onclick = () => {
     const pq = Game.pendingQuestions().length;

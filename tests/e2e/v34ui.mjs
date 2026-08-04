@@ -30,39 +30,18 @@ await page.waitForTimeout(500);
 const afterDone = await page.evaluate(() => window.Game.state.reading.status);
 console.log('after done status:', afterDone);
 
-// 2. settings parent gate
+// 2. settings: save card + admin link (v3.6: parent area moved to /admin)
 await page.evaluate(() => window.UI.openPanel('settings'));
 await page.waitForTimeout(500);
-const gate = await page.evaluate(() => {
-  const inp = document.getElementById('inp-parent-gate');
-  const card = inp?.closest('.card');
-  const m = card?.textContent.match(/(\d+)\s*×\s*(\d+)/);
-  return m ? { a: +m[1], b: +m[2] } : null;
-});
-console.log('GATE:', JSON.stringify(gate));
-if (gate) {
-  await page.fill('#inp-parent-gate', String(gate.a * gate.b));
-  await page.click('#btn-parent-gate');
-  await page.waitForTimeout(600);
-  const parentArea = await page.evaluate(() => {
-    const wrap = document.getElementById('parent-area-wrap');
-    return {
-      unlocked: !!wrap,
-      hasApprove: !!document.getElementById('btn-approve-reading'),
-      textSnippet: wrap?.textContent.slice(0, 120)
-    };
-  });
-  console.log('PARENT AREA:', JSON.stringify(parentArea));
-  await page.screenshot({ path: '/home/user/shot-parent.png' });
-  // approve
-  if (parentArea.hasApprove) {
-    const before = await page.evaluate(() => window.Game.state.money);
-    await page.click('#btn-approve-reading');
-    await page.waitForTimeout(500);
-    const after = await page.evaluate(() => ({ money: window.Game.state.money, status: window.Game.state.reading.status }));
-    console.log('APPROVE via UI: +' + (after.money - before), after.status);
-  }
-}
+const settingsUI = await page.evaluate(() => ({
+  saveManual: !!document.getElementById('btn-save-manual'),
+  saveExport: !!document.getElementById('btn-save-export'),
+  saveImport: !!document.getElementById('btn-save-import'),
+  adminLink: !!document.querySelector('a[href="/admin"]'),
+  oldGateGone: !document.getElementById('inp-parent-gate')
+}));
+console.log('SETTINGS v3.6:', JSON.stringify(settingsUI));
+await page.screenshot({ path: '/home/user/shot-parent.png' });
 
 // 3. force a creative question render
 await page.evaluate(() => {

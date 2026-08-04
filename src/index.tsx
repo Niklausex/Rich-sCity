@@ -16,6 +16,66 @@ app.get('/favicon.ico', (c) => {
 
 app.notFound((c) => c.text('Not Found', 404))
 
+// 家长后台：独立页面，账号密码登录（同源共享 localStorage 存档）
+app.get('/admin', (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rich's City · 家长后台</title>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'PingFang SC','Microsoft YaHei',system-ui,sans-serif; background: #f2f4f8; color: #333; min-height: 100vh; }
+  .topbar { background: #1e3a5f; color: #fff; padding: 14px 20px; display: flex; align-items: center; gap: 12px; }
+  .topbar h1 { font-size: 18px; flex: 1; }
+  .topbar .who { font-size: 13px; opacity: .85; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 20px 16px 60px; }
+  .card { background: #fff; border-radius: 14px; padding: 18px 20px; margin-top: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+  .card h3 { font-size: 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .card p { font-size: 14px; line-height: 1.8; color: #555; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; border: none; border-radius: 10px; padding: 9px 16px; font-size: 14px; font-weight: 700; cursor: pointer; background: #e9ecef; color: #333; }
+  .btn:hover { filter: brightness(.95); }
+  .btn-blue { background: #2b6cb0; color: #fff; }
+  .btn-green { background: #2f9e44; color: #fff; }
+  .btn-red { background: #e03131; color: #fff; }
+  .btn-gray { background: #868e96; color: #fff; }
+  input { width: 100%; border: 1.5px solid #ccd3dd; border-radius: 10px; padding: 10px 12px; font-size: 15px; margin-top: 8px; }
+  input:focus { outline: none; border-color: #2b6cb0; }
+  .login-box { max-width: 400px; margin: 8vh auto 0; }
+  .login-logo { text-align: center; font-size: 46px; }
+  .login-title { text-align: center; font-size: 20px; font-weight: 800; margin-top: 6px; }
+  .login-sub { text-align: center; font-size: 13px; color: #888; margin-top: 4px; }
+  .err { color: #e03131; font-size: 13px; margin-top: 8px; min-height: 18px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 10px; margin-top: 10px; }
+  .stat-item { background: #f6f8fb; border-radius: 10px; padding: 12px; text-align: center; }
+  .stat-item b { display: block; font-size: 22px; color: #1e3a5f; }
+  .stat-item span { font-size: 12px; color: #888; }
+  .writing { background: #fbfaf6; border: 1.5px solid #e8e2d0; border-radius: 10px; padding: 10px 14px; margin-top: 10px; }
+  .writing .w-title { font-weight: 800; font-size: 14px; }
+  .writing .w-day { font-weight: 600; color: #999; font-size: 12px; }
+  .writing .w-text { font-size: 14px; line-height: 1.8; margin-top: 4px; white-space: pre-wrap; }
+  .tag { display: inline-block; background: #e8590c; color: #fff; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 700; }
+  .tag-ok { background: #2f9e44; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .muted { color: #999; font-size: 13px; }
+  a.link { color: #2b6cb0; font-size: 13px; cursor: pointer; text-decoration: underline; }
+  #toast { position: fixed; left: 50%; top: 18px; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 20px; border-radius: 10px; font-size: 14px; display: none; z-index: 99; }
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<div id="app"></div>
+<script src="/static/js/data/questions-data3.js"></script>
+<script src="/static/js/data/catalog.js"></script>
+<script src="/static/js/engine/state.js"></script>
+<script src="/static/js/engine/game.js"></script>
+<script src="/static/js/admin.js"></script>
+</body>
+</html>`)
+})
+
 app.get('/', (c) => {
   return c.html(`<!DOCTYPE html>
 <html lang="zh-CN">
@@ -53,6 +113,7 @@ app.get('/', (c) => {
     </div>
     <div class="day-box">
       <span id="game-date">第1天</span>
+      <button id="btn-save-now" class="btn btn-day" title="立即保存游戏进度" style="background:#2f9e44"><i class="fas fa-floppy-disk"></i> 保存</button>
       <button id="btn-sleep" class="btn btn-day" title="结束今天，进入新的一天"><i class="fas fa-moon"></i> 睡觉</button>
     </div>
   </header>

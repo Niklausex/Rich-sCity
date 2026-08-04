@@ -411,7 +411,7 @@
     const statusHtml = st === 'approved'
       ? '<span class="tag" style="background:#237841;color:#fff">✅ 今天已完成！家长已确认</span>'
       : st === 'pending'
-        ? '<span class="tag" style="background:#e8590c;color:#fff">⏳ 等待家长确认中…（请爸爸妈妈去 设置→家长区 点通过）</span>'
+        ? '<span class="tag" style="background:#e8590c;color:#fff">⏳ 等待家长确认中…（请爸爸妈妈打开 家长后台 点通过）</span>'
         : '<span class="tag tag-orange">🎯 今天还没完成跟读哦</span>';
     const paras = String(p.text).split(/\n\n+/).filter(t => t.trim());
     const parasHtml = paras.map((t, i) => `
@@ -466,64 +466,12 @@
     const doneBtn = $('btn-read-done');
     if (doneBtn) doneBtn.onclick = () => {
       if (Game.markReadingDone()) {
-        toast('🎉 真棒！去请爸爸妈妈确认吧（设置→家长区）', 'gold');
+        toast('🎉 真棒！去请爸爸妈妈打开家长后台确认吧', 'gold');
         confetti(15);
         renderReading();
         refreshTop();
       }
     };
-  }
-
-  /* ---------- 家长区：两位数乘法门（孩子不易算对，家长秒算） ---------- */
-  let parentUnlocked = false;
-  function parentGateHtml() {
-    const a = 12 + Math.floor(Math.random() * 78), b = 12 + Math.floor(Math.random() * 78);
-    return { html: `
-      <div class="card" style="background:#f4f0fa"><div class="grow">
-        <h4>🔐 家长区（需要爸爸妈妈解锁）</h4>
-        <p>请家长回答：<b style="font-size:17px">${a} × ${b} = ?</b></p>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <input type="tel" id="inp-parent-gate" placeholder="输入答案" style="flex:1">
-          <button class="btn btn-blue btn-small" id="btn-parent-gate">解锁</button>
-        </div>
-      </div></div>`, answer: a * b };
-  }
-
-  function parentAreaHtml() {
-    const S = Game.state;
-    const reading = S.reading;
-    const RA = window.READ_ALOUD || [];
-    let readCard;
-    if (reading && reading.day === S.day && reading.status === 'pending') {
-      const p = RA[reading.idx % RA.length] || { title: '' };
-      readCard = `<div class="card" style="background:#fff3e6"><div class="grow">
-        <h4>🎙️ 待确认跟读：《${p.title}》</h4>
-        <p>孩子说已完成今天的跟读。请听孩子读一遍，确认后点通过（奖励 20 元 + 快乐值 5）</p>
-        <button class="btn btn-green btn-small" id="btn-approve-reading" style="margin-top:8px"><i class="fas fa-check"></i> 确认通过，发奖励</button>
-      </div></div>`;
-    } else if (reading && reading.day === S.day && reading.status === 'approved') {
-      readCard = `<div class="card"><div class="grow"><h4>🎙️ 今日跟读</h4><p>✅ 今天的跟读已确认完成！</p></div></div>`;
-    } else {
-      readCard = `<div class="card"><div class="grow"><h4>🎙️ 今日跟读</h4><p>孩子还没点“我完成跟读啦”，暂无待确认项。</p></div></div>`;
-    }
-    const ws = (S.writings || []).slice().reverse().slice(0, 20);
-    const writingsHtml = ws.length
-      ? ws.map(w => `<div style="background:#fbfaf6;border:1.5px solid #e8e2d0;border-radius:10px;padding:8px 12px;margin-top:8px">
-          <div style="font-weight:800;font-size:14px">📝 《${w.title}》<span style="font-weight:600;color:#999;font-size:12px"> · 第${w.day}天</span></div>
-          <div style="font-size:14px;line-height:1.7;margin-top:4px;white-space:pre-wrap">${w.text.replace(/</g, '&lt;')}</div>
-        </div>`).join('')
-      : '<p style="color:#999">还没有创作作品。语文题里会随机出现“小小作家”创作题（每天最多2道）。</p>';
-    const stats = S.stats || {};
-    return `${readCard}
-      <div class="card"><div class="grow">
-        <h4>📚 学习概况</h4>
-        <p>累计答题 <b>${stats.totalAnswered || 0}</b> 道 · 答对 <b>${stats.totalRight || 0}</b> 道 · 正确率 <b>${stats.totalAnswered ? Math.round(stats.totalRight / stats.totalAnswered * 100) : 0}%</b><br>
-        待复习错题 <b>${(S.wrongPool || []).length}</b> 道 · 已掌握 <b>${(S.mastered || []).length}</b> 道 · 巩固队列 <b>${(S.reviewQueue || []).length}</b> 道</p>
-      </div></div>
-      <div class="card"><div class="grow">
-        <h4>✨ 孩子的作品集（最近20篇）</h4>
-        ${writingsHtml}
-      </div></div>`;
   }
 
   /* ---------- 设置面板 ---------- */
@@ -546,10 +494,20 @@
       </div></div>
       <div class="card"><div class="grow">
         <h4>💾 存档</h4>
-        <p>游戏自动保存在这台电脑的浏览器里。换电脑玩会重新开始哦。</p>
-        <button class="btn btn-red btn-small" id="btn-reset" style="margin-top:8px"><i class="fas fa-trash"></i> 重新开始游戏</button>
+        <p>游戏自动保存在这台电脑的浏览器里，也可以随时手动保存。<br><b>建议定期导出存档文件备份</b>，防止清理浏览器数据导致丢失；换电脑时导入存档文件就能接着玩。</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <button class="btn btn-green btn-small" id="btn-save-manual"><i class="fas fa-floppy-disk"></i> 立即保存</button>
+          <button class="btn btn-blue btn-small" id="btn-save-export"><i class="fas fa-file-export"></i> 导出存档文件</button>
+          <button class="btn btn-small" id="btn-save-import"><i class="fas fa-file-import"></i> 导入存档文件</button>
+          <input type="file" id="file-save-import" accept=".json" style="display:none">
+        </div>
+        <button class="btn btn-red btn-small" id="btn-reset" style="margin-top:10px"><i class="fas fa-trash"></i> 重新开始游戏</button>
       </div></div>
-      <div class="card" id="parent-area-slot"></div>
+      <div class="card" style="background:#f4f0fa"><div class="grow">
+        <h4>🔐 家长后台</h4>
+        <p>家长专属页面（账号密码登录）：确认跟读发奖励 / 查看作品集 / 学习概况 / 存档备份。首次打开需要设置家长账号。</p>
+        <a class="btn btn-blue btn-small" href="/admin" target="_blank" style="margin-top:8px;text-decoration:none"><i class="fas fa-user-shield"></i> 打开家长后台</a>
+      </div></div>
       <div class="card"><div class="grow">
         <h4>ℹ️ 关于 Rich's City</h4>
         <p>版本 1.0 · 一款为小市长打造的乐高风格学习城市游戏<br>答题赚钱 → 建造城市 → 提升周收入解锁新建筑 → 解锁车辆，努力建成超级城市吧！</p>
@@ -563,39 +521,51 @@
     $('btn-reset').onclick = () => {
       if (confirm('确定要删除存档、重新开始吗？所有进度都会消失！')) Game.resetGame();
     };
-    // 家长区：默认锁住，两位数乘法验证
-    const slot = $('parent-area-slot');
-    function mountParentArea() {
-      slot.outerHTML = `<div id="parent-area-wrap">${parentAreaHtml()}</div>`;
-      const ab = $('btn-approve-reading');
-      if (ab) ab.onclick = () => {
-        const res = Game.approveReading();
-        if (res.ok) {
-          toast(`✅ 已确认！奖励 ${res.reward} 元已发放`, 'gold');
-          confetti(20);
-          refreshTop();
-          const wrap = $('parent-area-wrap');
-          wrap.innerHTML = parentAreaHtml();
-        }
-      };
-    }
-    if (parentUnlocked) {
-      mountParentArea();
-    } else {
-      const gate = parentGateHtml();
-      slot.outerHTML = gate.html.trim();
-      $('btn-parent-gate').onclick = () => {
-        if (parseInt($('inp-parent-gate').value, 10) === gate.answer) {
-          parentUnlocked = true;
-          toast('🔓 家长区已解锁');
-          renderSettings();
-        } else {
-          toast('答案不对哦，再算算～', 'bad');
-        }
-      };
-      $('inp-parent-gate').onkeydown = (e) => { if (e.key === 'Enter') $('btn-parent-gate').click(); };
-    }
+    // 存档：立即保存 / 导出 / 导入
+    $('btn-save-manual').onclick = () => { Game.save(); toast('💾 已保存！进度安全啦', 'good'); };
+    $('btn-save-export').onclick = () => SaveIO.exportSave() ? toast('📦 存档已导出，请保存好文件', 'good') : toast('导出失败', 'bad');
+    $('btn-save-import').onclick = () => $('file-save-import').click();
+    $('file-save-import').onchange = (e) => {
+      const f = e.target.files[0];
+      if (f) SaveIO.importSave(f, (ok, msg) => { toast(msg, ok ? 'good' : 'bad'); if (ok) setTimeout(() => location.reload(), 800); });
+      e.target.value = '';
+    };
   }
+
+  /* ---------- 存档导出/导入（与 /admin 后台同格式） ---------- */
+  const SaveIO = {
+    exportSave() {
+      const raw = localStorage.getItem(GameState.SAVE_KEY);
+      if (!raw) return false;
+      const s = JSON.parse(raw);
+      const blob = new Blob([JSON.stringify({ _game: 'richs_city', _ver: 1, _exportedAt: new Date().toISOString(), save: s }, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      const d = new Date(), pad = (n) => String(n).padStart(2, '0');
+      a.href = URL.createObjectURL(blob);
+      a.download = `richs_city_第${s.day}天_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      return true;
+    },
+    importSave(file, cb) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result);
+          const s = data && data._game === 'richs_city' ? data.save : data;
+          if (!s || !Array.isArray(s.buildings) || !Array.isArray(s.residents) || typeof s.day !== 'number') {
+            return cb(false, '❌ 这不是有效的存档文件');
+          }
+          if (!confirm(`导入会覆盖当前进度（第${Game.state.day}天）！\n导入的存档：第${s.day}天 · 💰${s.money}元\n确定继续吗？`)) return cb(false, '已取消');
+          localStorage.setItem(GameState.SAVE_KEY, JSON.stringify(s));
+          cb(true, '✅ 存档导入成功，正在重新加载…');
+        } catch (err) {
+          cb(false, '❌ 文件解析失败，不是有效的存档');
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
 
   /* ---------- 建筑点击菜单 ---------- */
   function showBuildingMenu(b) {

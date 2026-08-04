@@ -332,7 +332,7 @@
       const result = Game.submitWriting(dq, q, text);
       const resultEl = document.getElementById('quiz-result');
       resultEl.innerHTML = `<span style="color:#237841">🎉 真棒的想象力！作品已收进「我的作品集」，奖励 💰${result.moneyBonus}</span>
-        <br><span style="font-size:13px;color:#888;font-weight:600">爸爸妈妈可以在设置→家长区 看到你的作品哦</span>`;
+        <br><span style="font-size:13px;color:#888;font-weight:600">爸爸妈妈可以在家长后台看到你的作品哦</span>`;
       UI.confetti(16);
       renderAfterActions(dq, r);
     };
