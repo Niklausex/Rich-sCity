@@ -572,7 +572,7 @@
   }
 
   /* ---------- 铁轨（独立铺在地块上，按邻接自动选直轨/弯轨/道口并做等距旋转） ----------
-   * 贴图实测：rail_tile 轨道沿 y 轴(NE↔SW)，rail_curve 连 +x/+y(SE&SW)，rail_cross 铁轨沿 y 轴。
+   * 贴图实测（素某4 新批次）：rail_tile 轨道沿 y 轴(NE↔SW)，rail_curve 连 -x/-y(NW&NE)，rail_cross 铁轨沿 y 轴。
    * 等距世界旋转90°在屏幕坐标里是线性变换 M=[[0,-2],[0.5,0]]（菱形映射回菱形），
    * 用 ctx.transform 即可得到全部 4 个朝向，比水平镜像更通用（镜像凑不齐弯轨4向）。 */
   function railRot(k) {
@@ -588,10 +588,10 @@
     let im = null, k = 0;
     if (railY && railX) {
       im = Assets.opt('rail_curve');
-      if (rE && rS) k = 0;            // 连 +x/+y（原图）
-      else if (rS && rW) k = 1;       // +y/-x
-      else if (rW && rN) k = 2;       // -x/-y
-      else k = 3;                     // -y/+x
+      if (rW && rN) k = 0;            // 连 -x/-y（原图）
+      else if (rN && rE) k = 1;       // -y/+x
+      else if (rE && rS) k = 2;       // +x/+y
+      else k = 3;                     // +y/-x
     } else {
       // 直轨（孤立轨默认沿 y 轴）；有垂直方向的公路 → 道口贴图
       const perp = railX ? (isRoad(x, y + 1) || isRoad(x, y - 1)) : (isRoad(x + 1, y) || isRoad(x - 1, y));

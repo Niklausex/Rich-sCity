@@ -1,7 +1,7 @@
 # 技术交接文档（Agent Handoff）
 
 > 目的：任何新接手的 Agent / 开发者，只读本文档 + README 即可完整理解项目现状、关键约定与待办。
-> 最后更新：2026-08-04（main @ main HEAD，v4.0（地形河流 + 铁轨/桥梁 + 火车沿轨/轮船巡游/飞机贴图 + 扩地二选一））
+> 最后更新：2026-08-04（main @ main HEAD，v4.1（19 张素材重制入库：16 载具+直轨/弯轨/铁路桥，弯轨朝向重测；v4.0 地形河流 + 铁轨/桥梁 + 三栖载具））
 > ⚠️ **文档更新规约（对所有 Agent 强制）**：每次功能变更后，必须同步更新 ①本文档（模块地图/版本演进/待办/坑）②README（功能清单/数据架构/最后更新行）③本头部的提交号。这是用户明确要求，目的是任何模型可无缝接手。
 
 ---
@@ -223,7 +223,7 @@ node tests/e2e/admintest.mjs                          # v3.6 家长后台全流�
 
 ### 铁轨/桥（catalog 新条目，都是普通建筑走 buildings）
 - rail（1×1 ¥30 解锁800）/ bridge_road（2×1 ¥200 解锁300）/ bridge_rail（2×1 ¥300 解锁1000）。
-- `drawRailIso`（map.js）：邻接自动选型——直轨 rail_tile（原图沿 y 轴）/弯轨 rail_curve（原图连 +x/+y）/公路垂直相邻→ rail_cross。**朝向用等距世界旋转矩阵 railRot(k)：ctx.transform(0,0.5,-2,0)=旋90°**（菱形映射回菱形，比水平镜像通用，弯轨4向全覆盖）。
+- `drawRailIso`（map.js）：邻接自动选型——直轨 rail_tile（原图沿 y 轴）/弯轨 rail_curve（**素某4 新批次原图连 -x/-y，NW&NE 边**，旧批次是 +x/+y，换图必须重新实测并改 k 映射）/公路垂直相邻→ rail_cross。**朝向用等距世界旋转矩阵 railRot(k)：ctx.transform(0,0.5,-2,0)=旋90°**（菱形映射回菱形，比水平镜像通用，弯轨4向全覆盖）。
 - `isRoad` 含 bridge_road，`isRail` 含 bridge_rail，`isWalkable` 水面仅 bridge_road 可过 → 小人/汽车走公路桥，火车走铁路桥。
 
 ### 三栖载具（均克隆 cars-on-road 巡路模式）
@@ -231,7 +231,8 @@ node tests/e2e/admintest.mjs                          # v3.6 家长后台全流�
 
 ### 素材入库教训（重要！）
 - 第二批 7 张地形瓦首次入库时 sharp 丢了 alpha → 白底。修复：**从图像边缘泛洪填充抚白（阈值≥235）**，保留画面内部白色细节（道口栏杆条纹），再 resize 512×256 / 桥 trim→520 宽。脚本在对话历史，核心：ensureAlpha+边缘BFS。
-- rail_tile 实测轨道沿 y 轴（NE/SW 边不透明）；rail_curve 连 +x/+y（SE/SW）；用边中点 alpha 采样脚本可复测。
+- rail_tile 实测轨道沿 y 轴（NE/SW 边不透明）；rail_curve（素某4 批）连 -x/-y（NW/NE 边）；用边中点 alpha 采样脚本可复测。**每次换轨道图必须重测朝向并同步改 drawRailIso 的 k 映射！**
+- **第三批（素某4，19 张）**：16 载具 + 直轨/弯轨/铁路桥重制，纯白背景（边框亮度 252-255），泛洪填充（阈值≥240）一次成功，无棋盘格残留。旧批次载具的假透明棋盘格问题彻底解决。
 - 素材总数 109（manifest 自动生成，勿手改）。river_bend 已废弃删除。
 - ground_grass/ground_grass2/road_tile/road_crosswalk 未动（用户后续自行重绘）。
 
