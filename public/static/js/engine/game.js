@@ -364,12 +364,27 @@
       return { day: S.day, questions: S.dailyQuestions.length };
     },
 
+    /* ---------- 地形 ---------- */
+    terrainAt(gx, gy) {
+      if (!S || !S.terrain || gy < 0 || gy >= S.mapH || gx < 0 || gx >= S.mapW) return 'g';
+      return S.terrain[gy][gx] === 'w' ? 'w' : 'g';
+    },
+    isWater(gx, gy) { return this.terrainAt(gx, gy) === 'w'; },
+
     /* ---------- 建造 ---------- */
-    isAreaFree(x, y, w, h, ignoreUid) {
+    isAreaFree(x, y, w, h, ignoreUid, bid) {
       if (x < 0 || y < 0 || x + w > S.mapW || y + h > S.mapH) return false;
       for (const b of S.buildings) {
         if (ignoreUid && b.uid === ignoreUid) continue;
         if (x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y) return false;
+      }
+      // 地形规则：桥只能全部跨在水上；其它建筑不能碰水
+      const isBridge = bid === 'bridge_road' || bid === 'bridge_rail';
+      for (let gy = y; gy < y + h; gy++) {
+        for (let gx = x; gx < x + w; gx++) {
+          const w2 = this.isWater(gx, gy);
+          if (isBridge ? !w2 : w2) return false;
+        }
       }
       return true;
     },
@@ -380,7 +395,10 @@
       if (!this.isUnlocked(info)) return { ok: false, msg: `周收入达到 ${info.unlockIncome} 元/周才能解锁「${info.name}」` };
       if (S.money < info.cost) return { ok: false, msg: '资金不够，快去答题、收税赚钱吧！' };
       const w = rotated ? info.h : info.w, h = rotated ? info.w : info.h;
-      if (!this.isAreaFree(x, y, w, h)) return { ok: false, msg: '这里放不下，换个位置试试' };
+      if (!this.isAreaFree(x, y, w, h, null, bid)) {
+        const isBridge = bid === 'bridge_road' || bid === 'bridge_rail';
+        return { ok: false, msg: isBridge ? '桥要整座架在河面上哦' : '这里放不下（水面要用桥），换个位置试试' };
+      }
       S.money -= info.cost;
       const b = { uid: 'b' + (S.nextUid++), id: bid, name: info.name, x, y, w, h };
       S.buildings.push(b);
@@ -392,7 +410,7 @@
     moveBuilding(uid, x, y) {
       const b = S.buildings.find(x2 => x2.uid === uid);
       if (!b) return { ok: false };
-      if (!this.isAreaFree(x, y, b.w, b.h, uid)) return { ok: false, msg: '这里放不下' };
+      if (!this.isAreaFree(x, y, b.w, b.h, uid, b.id)) return { ok: false, msg: '这里放不下' };
       b.x = x; b.y = y;
       this.save();
       return { ok: true };
@@ -412,16 +430,23 @@
       const lv = this.expandLevel();
       return [500, 1500, 4000][lv] || null;   // 超过上限返回 null
     },
-    expandLand() {
+    expandLand(type) {
       const cost = this.expandCost();
       if (cost == null) return { ok: false, msg: '地块已经扩到最大啦！' };
       if (S.money < cost) return { ok: false, msg: `扩建需要💰${cost}，先去答题/收税赚钱吧！` };
+      const ch = type === 'water' ? 'w' : 'g';
       S.money -= cost;
+      const oldW = S.mapW;
       S.mapW += this.EXPAND_STEP.w;
       S.mapH += this.EXPAND_STEP.h;
-      this.pushLog(`花${cost}元扩建了地块 → ${S.mapW}×${S.mapH}格`);
+      // 地形同步扩展：右侧新列 + 底部新行用选择的地形填充
+      if (!S.terrain) S.terrain = [];
+      for (let y = 0; y < S.terrain.length; y++) S.terrain[y] += ch.repeat(S.mapW - oldW);
+      while (S.terrain.length < S.mapH) S.terrain.push(ch.repeat(S.mapW));
+      const tn = type === 'water' ? '水域' : '草地';
+      this.pushLog(`花${cost}元扩建了${tn} → ${S.mapW}×${S.mapH}格`);
       this.save();
-      return { ok: true, msg: `🎉 地块扩大到 ${S.mapW}×${S.mapH} 格！` };
+      return { ok: true, msg: `🎉 城市扩大到 ${S.mapW}×${S.mapH} 格（新增${tn}）！` };
     },
     demolish(uid) {
       const i = S.buildings.findIndex(x => x.uid === uid);

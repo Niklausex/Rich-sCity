@@ -66,11 +66,16 @@
     const S = Game.state;
     if (gx < 0 || gy < 0 || gx >= S.mapW || gy >= S.mapH) return false;
     const b = buildingAt(gx, gy);
+    if (Game.isWater(gx, gy)) return !!b && b.id === 'bridge_road';  // 水面只能走公路桥
     return !b || b.id === 'road';
   }
 
   function isRoad(gx, gy) {
-    return Game.state.buildings.some(b => b.id === 'road' && gx >= b.x && gx < b.x + b.w && gy >= b.y && gy < b.y + b.h);
+    return Game.state.buildings.some(b => (b.id === 'road' || b.id === 'bridge_road') && gx >= b.x && gx < b.x + b.w && gy >= b.y && gy < b.y + b.h);
+  }
+
+  function isRail(gx, gy) {
+    return Game.state.buildings.some(b => (b.id === 'rail' || b.id === 'bridge_rail') && gx >= b.x && gx < b.x + b.w && gy >= b.y && gy < b.y + b.h);
   }
 
   /* 以 (gx,gy) 为起点螺旋查找最近的可通行格（用于出生/被建筑压住时脱困） */
@@ -192,19 +197,114 @@
     }
   }
 
-  /* ---------- 飞机飞过天空 ---------- */
-  let flyer = null; // {icon, x, y, vx}
+  /* ============================================================
+   * 火车沿铁轨开（与汽车同模式）
+   * ============================================================ */
+  const trains = []; // {vid, x, y, tx, ty, px, py, speed, onRail}
+  function syncTrains() {
+    const S = Game.state;
+    const owned = S.vehicles.filter(v => { const i = CATALOG.findVehicle(v); return i && i.type === 'train'; });
+    if (!owned.length) { trains.length = 0; return; }
+    const rails = [];
+    for (const b of S.buildings) if (b.id === 'rail' || b.id === 'bridge_rail')
+      for (let gy = b.y; gy < b.y + b.h; gy++) for (let gx = b.x; gx < b.x + b.w; gx++) rails.push({ x: gx, y: gy });
+    for (const vid of owned) {
+      if (!trains.find(t => t.vid === vid)) {
+        const r = rails.length ? rails[Math.floor(Math.random() * rails.length)] : null;
+        trains.push({ vid, x: r ? r.x + 0.5 : -1, y: r ? r.y + 0.5 : -1, tx: r ? r.x : 0, ty: r ? r.y : 0, px: -9, py: -9, speed: 1.7 + Math.random() * 0.9, onRail: !!r });
+      }
+    }
+    for (let i = trains.length - 1; i >= 0; i--) if (!owned.includes(trains[i].vid)) trains.splice(i, 1);
+    for (const t of trains) if (!t.onRail && rails.length) { const r = rails[Math.floor(Math.random() * rails.length)]; t.x = r.x + 0.5; t.y = r.y + 0.5; t.tx = r.x; t.ty = r.y; t.onRail = true; }
+  }
+
+  function updateTrains(dt) {
+    for (const t of trains) {
+      if (!t.onRail) continue;
+      if (!isRail(Math.floor(t.x), Math.floor(t.y))) { t.onRail = false; continue; }
+      const dx = t.tx + 0.5 - t.x, dy = t.ty + 0.5 - t.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 0.05) {
+        const cx = t.tx, cy = t.ty;
+        const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(d => isRail(cx + d[0], cy + d[1]) && !(cx + d[0] === t.px && cy + d[1] === t.py));
+        let next = null;
+        if (dirs.length) next = dirs[Math.floor(Math.random() * dirs.length)];
+        else if (isRail(t.px, t.py)) next = [t.px - cx, t.py - cy];
+        if (next) { t.px = cx; t.py = cy; t.tx = cx + next[0]; t.ty = cy + next[1]; }
+      } else {
+        const mv = Math.min(dist, t.speed * dt);
+        t.x += dx / dist * mv; t.y += dy / dist * mv;
+      }
+    }
+  }
+
+  /* ============================================================
+   * 轮船在河面巡游（需要港口紧邻水面才出航）
+   * ============================================================ */
+  const ships = []; // {vid, x, y, tx, ty, px, py, speed, onWater}
+  function harborByWater() {
+    const S = Game.state;
+    return S.buildings.some(b => {
+      if (b.id !== 'harbor') return false;
+      for (let gx = b.x - 1; gx <= b.x + b.w; gx++) if (Game.isWater(gx, b.y - 1) || Game.isWater(gx, b.y + b.h)) return true;
+      for (let gy = b.y - 1; gy <= b.y + b.h; gy++) if (Game.isWater(b.x - 1, gy) || Game.isWater(b.x + b.w, gy)) return true;
+      return false;
+    });
+  }
+  function syncShips() {
+    const S = Game.state;
+    const owned = S.vehicles.filter(v => { const i = CATALOG.findVehicle(v); return i && i.type === 'ship'; });
+    if (!owned.length || !harborByWater()) { ships.length = 0; return; }
+    let waters = null;
+    const collect = () => {
+      if (waters) return waters;
+      waters = [];
+      for (let gy = 0; gy < S.mapH; gy++) for (let gx = 0; gx < S.mapW; gx++) if (Game.isWater(gx, gy)) waters.push({ x: gx, y: gy });
+      return waters;
+    };
+    for (const vid of owned) {
+      if (!ships.find(s => s.vid === vid)) {
+        const ws = collect();
+        const r = ws.length ? ws[Math.floor(Math.random() * ws.length)] : null;
+        ships.push({ vid, x: r ? r.x + 0.5 : -1, y: r ? r.y + 0.5 : -1, tx: r ? r.x : 0, ty: r ? r.y : 0, px: -9, py: -9, speed: 0.5 + Math.random() * 0.3, onWater: !!r });
+      }
+    }
+    for (let i = ships.length - 1; i >= 0; i--) if (!owned.includes(ships[i].vid)) ships.splice(i, 1);
+  }
+
+  function updateShips(dt) {
+    for (const s of ships) {
+      if (!s.onWater) continue;
+      if (!Game.isWater(Math.floor(s.x), Math.floor(s.y))) { s.onWater = false; continue; }
+      const dx = s.tx + 0.5 - s.x, dy = s.ty + 0.5 - s.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 0.05) {
+        const cx = s.tx, cy = s.ty;
+        const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(d => Game.isWater(cx + d[0], cy + d[1]) && !(cx + d[0] === s.px && cy + d[1] === s.py));
+        let next = null;
+        if (dirs.length) next = dirs[Math.floor(Math.random() * dirs.length)];
+        else if (Game.isWater(s.px, s.py)) next = [s.px - cx, s.py - cy];
+        if (next) { s.px = cx; s.py = cy; s.tx = cx + next[0]; s.ty = cy + next[1]; }
+      } else {
+        const mv = Math.min(dist, s.speed * dt);
+        s.x += dx / dist * mv; s.y += dy / dist * mv;
+      }
+    }
+  }
+
+  /* ---------- 飞机飞过天空（有贴图用贴图，否则 emoji） ---------- */
+  let flyer = null; // {vid, icon, x, y, vx}
   function updateFlyer(dt) {
     const S = Game.state;
     if (!flyer) {
       const planes = S.vehicles.map(CATALOG.findVehicle).filter(v => v && (v.type === 'plane' || v.type === 'rocket'));
       if (planes.length && Math.random() < dt * 0.06) {
         const p = planes[Math.floor(Math.random() * planes.length)];
-        flyer = { icon: p.icon, x: -80, y: 40 + Math.random() * canvas.height * 0.25, vx: 60 + Math.random() * 50 };
+        flyer = { vid: p.id, icon: p.icon, x: -120, y: 40 + Math.random() * canvas.height * 0.25, vx: 60 + Math.random() * 50 };
       }
     } else {
       flyer.x += flyer.vx * dt;
-      if (flyer.x > canvas.width + 100) flyer = null;
+      if (flyer.x > canvas.width + 140) flyer = null;
     }
   }
 
@@ -252,10 +352,25 @@
 
     // 草地格子（有 ground_grass 贴图就用贴图，否则代码绘制）
     const grassA = Assets.opt('ground_grass'), grassB = Assets.opt('ground_grass2') || grassA;
+    const waterA = Assets.opt('river_tile'), waterB = Assets.opt('river_tile2') || waterA;
     for (let gy = 0; gy < S.mapH; gy++) {
       for (let gx = 0; gx < S.mapW; gx++) {
         const p = iso(gx + 0.5, gy + 0.5);
         if (p.x < -TW || p.x > canvas.width + TW || p.y < -TW || p.y > canvas.height + TW) continue;
+        // 河水：和草地同层同画法，贴图交替铺（无贴图时代码画蓝色菱形 + 微波光）
+        if (Game.isWater(gx, gy)) {
+          const wim = (gx + gy) % 2 ? waterA : waterB;
+          if (wim) { ctx.drawImage(wim, p.x - TW / 2, p.y - TH() / 2, TW, TH()); continue; }
+          diamond(p.x, p.y, TW, TH());
+          ctx.fillStyle = (gx + gy) % 2 ? '#3fa9e8' : '#38a1e1';
+          ctx.fill();
+          if (TW >= 40) {
+            ctx.beginPath();
+            ctx.ellipse(p.x + Math.sin(time * 1.2 + gx * 2 + gy) * TW * 0.06, p.y, TW * 0.14, TW * 0.04, 0, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fill();
+          }
+          continue;
+        }
         const gim = (gx + gy) % 2 ? grassA : grassB;
         if (gim) { ctx.drawImage(gim, p.x - TW / 2, p.y - TH() / 2, TW, TH()); continue; }
         diamond(p.x, p.y, TW, TH());
@@ -331,6 +446,7 @@
     const color = info.color;
 
     if (b.id === 'road') { drawRoadIso(b, pA, pB, pC, pD); return; }
+    if (b.id === 'rail') { drawRailIso(b); return; }
 
     // —— 优先使用美术贴图（已交付资产 + manifest 里新放进来的贴图）——
     const bim = Assets.opt(b.id);
@@ -453,6 +569,51 @@
     ctx.fillStyle = '#5a5a5a'; ctx.fill();
     ctx.strokeStyle = '#4a4a4a'; ctx.lineWidth = 1; ctx.stroke();
     drawRoadMarks(b);
+  }
+
+  /* ---------- 铁轨（独立铺在地块上，按邻接自动选直轨/弯轨/道口并做等距旋转） ----------
+   * 贴图实测：rail_tile 轨道沿 y 轴(NE↔SW)，rail_curve 连 +x/+y(SE&SW)，rail_cross 铁轨沿 y 轴。
+   * 等距世界旋转90°在屏幕坐标里是线性变换 M=[[0,-2],[0.5,0]]（菱形映射回菱形），
+   * 用 ctx.transform 即可得到全部 4 个朝向，比水平镜像更通用（镜像凑不齐弯轨4向）。 */
+  function railRot(k) {
+    if (k === 1) ctx.transform(0, 0.5, -2, 0, 0, 0);        // 世界旋转90°
+    else if (k === 2) ctx.transform(-1, 0, 0, -1, 0, 0);    // 180°
+    else if (k === 3) ctx.transform(0, -0.5, 2, 0, 0, 0);   // 270°
+  }
+  function drawRailIso(b) {
+    const x = b.x, y = b.y;
+    const rN = isRail(x, y - 1), rS = isRail(x, y + 1), rE = isRail(x + 1, y), rW = isRail(x - 1, y);
+    const railY = rN || rS, railX = rE || rW;
+    const p = iso(x + 0.5, y + 0.5);
+    let im = null, k = 0;
+    if (railY && railX) {
+      im = Assets.opt('rail_curve');
+      if (rE && rS) k = 0;            // 连 +x/+y（原图）
+      else if (rS && rW) k = 1;       // +y/-x
+      else if (rW && rN) k = 2;       // -x/-y
+      else k = 3;                     // -y/+x
+    } else {
+      // 直轨（孤立轨默认沿 y 轴）；有垂直方向的公路 → 道口贴图
+      const perp = railX ? (isRoad(x, y + 1) || isRoad(x, y - 1)) : (isRoad(x + 1, y) || isRoad(x - 1, y));
+      im = (perp ? Assets.opt('rail_cross') : null) || Assets.opt('rail_tile');
+      k = railX ? 1 : 0;              // 原图沿 y 轴，x 轴方向旋转90°
+    }
+    if (im) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      railRot(k);
+      ctx.drawImage(im, -TW / 2, -TH() / 2, TW, TH());
+      ctx.restore();
+      return;
+    }
+    // 代码兜底：两条深色钢轨 + 枕木色底
+    const along = railX ? [[x, y + 0.5], [x + 1, y + 0.5]] : [[x + 0.5, y], [x + 0.5, y + 1]];
+    ctx.strokeStyle = '#6b5744'; ctx.lineWidth = TW * 0.16;
+    const e1 = iso(along[0][0], along[0][1]), e2 = iso(along[1][0], along[1][1]);
+    ctx.beginPath(); ctx.moveTo(e1.x, e1.y); ctx.lineTo(e2.x, e2.y); ctx.stroke();
+    ctx.strokeStyle = '#8d8d95'; ctx.lineWidth = Math.max(1.5, TW * 0.04);
+    ctx.beginPath(); ctx.moveTo(e1.x, e1.y - TW * 0.03); ctx.lineTo(e2.x, e2.y - TW * 0.03); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(e1.x, e1.y + TW * 0.03); ctx.lineTo(e2.x, e2.y + TW * 0.03); ctx.stroke();
   }
 
   /* 道路标线：按邻接方向代码绘制（任意拼接方向都不会歪） */
@@ -677,6 +838,56 @@
     ctx.fillText(v.icon, p.x, p.y - TW * 0.14);
   }
 
+  /* ---------- 行驶的火车（沿铁轨，画法同汽车但更大） ---------- */
+  function drawTrain(t) {
+    if (!t.onRail) return;
+    const v = CATALOG.findVehicle(t.vid);
+    if (!v) return;
+    const p = iso(t.x, t.y);
+    if (p.x < -60 || p.x > canvas.width + 60) return;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + 2, TW * 0.3, TW * 0.09, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fill();
+    const vim = Assets.opt('veh_' + t.vid);
+    if (vim) {
+      const w = TW * 1.3, h = w * (vim.naturalHeight / vim.naturalWidth);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      if (t.tx - t.x + (t.y - t.ty) >= 0) ctx.scale(-1, 1);
+      ctx.drawImage(vim, -w / 2, -h + TW * 0.06, w, h);
+      ctx.restore();
+      return;
+    }
+    ctx.font = `${TW * 0.5}px serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(v.icon, p.x, p.y - TW * 0.18);
+  }
+
+  /* ---------- 巡游的轮船（在河面，带上下起伏 + 尾波） ---------- */
+  function drawShip(s) {
+    if (!s.onWater) return;
+    const v = CATALOG.findVehicle(s.vid);
+    if (!v) return;
+    const p = iso(s.x, s.y);
+    if (p.x < -60 || p.x > canvas.width + 60) return;
+    const bob = Math.sin(time * 1.5 + s.x * 3 + s.y * 2) * 2;
+    // 尾波（白色椭圆代替阴影）
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + 2, TW * 0.28, TW * 0.08, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fill();
+    const vim = Assets.opt('veh_' + s.vid);
+    if (vim) {
+      const w = TW * 1.1, h = w * (vim.naturalHeight / vim.naturalWidth);
+      ctx.save();
+      ctx.translate(p.x, p.y + bob);
+      if (s.tx - s.x + (s.y - s.ty) >= 0) ctx.scale(-1, 1);
+      ctx.drawImage(vim, -w / 2, -h + TW * 0.04, w, h);
+      ctx.restore();
+      return;
+    }
+    ctx.font = `${TW * 0.5}px serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(v.icon, p.x, p.y + bob - TW * 0.18);
+  }
+
   /* ---------- 停靠的大型载具(火车/飞机/轮船/火箭) ---------- */
   function drawDocked() {
     const S = Game.state;
@@ -760,8 +971,8 @@
     const S = Game.state;
     if (!S) { requestAnimationFrame(loop); return; }
 
-    syncWalkers(); syncCars();
-    updateWalkers(dt); updateCars(dt); updateFlyer(dt);
+    syncWalkers(); syncCars(); syncTrains(); syncShips();
+    updateWalkers(dt); updateCars(dt); updateTrains(dt); updateShips(dt); updateFlyer(dt);
     for (const cl of clouds) cl.x += cl.v * dt;
 
     drawGround();
@@ -780,6 +991,14 @@
     for (const c of cars) if (c.onRoad) items.push({
       x0: c.x - 0.02, y0: c.y - 0.02, x1: c.x + 0.02, y1: c.y + 0.02, tie: 2,
       f: () => drawCar(c)
+    });
+    for (const t of trains) if (t.onRail) items.push({
+      x0: t.x - 0.02, y0: t.y - 0.02, x1: t.x + 0.02, y1: t.y + 0.02, tie: 2,
+      f: () => drawTrain(t)
+    });
+    for (const s of ships) if (s.onWater) items.push({
+      x0: s.x - 0.02, y0: s.y - 0.02, x1: s.x + 0.02, y1: s.y + 0.02, tie: 2,
+      f: () => drawShip(s)
     });
     sortIso(items);
     for (const it of items) it.f();
@@ -800,10 +1019,21 @@
 
     if (placing) drawGhost();
 
-    // 飞机飞过
+    // 飞机飞过（有贴图用贴图并朝右飞，否则 emoji）
     if (flyer) {
-      ctx.font = '34px serif'; ctx.textAlign = 'center';
-      ctx.fillText(flyer.icon, flyer.x, flyer.y);
+      const fim = Assets.opt('veh_' + flyer.vid);
+      if (fim) {
+        const fw = TW * 1.6, fh = fw * (fim.naturalHeight / fim.naturalWidth);
+        ctx.save();
+        ctx.translate(flyer.x, flyer.y);
+        ctx.rotate(-0.05);           // 微微抬头爬升
+        ctx.scale(-1, 1);            // 贴图默认朝左，镜像成朝右飞
+        ctx.drawImage(fim, -fw / 2, -fh / 2, fw, fh);
+        ctx.restore();
+      } else {
+        ctx.font = '34px serif'; ctx.textAlign = 'center';
+        ctx.fillText(flyer.icon, flyer.x, flyer.y);
+      }
     }
 
     requestAnimationFrame(loop);
@@ -832,7 +1062,7 @@
       const g = unIso(p.x, p.y);
       placing.gx = Math.max(0, Math.min(Game.state.mapW - placing.w, Math.floor(g.gx - placing.w / 2 + 0.5)));
       placing.gy = Math.max(0, Math.min(Game.state.mapH - placing.h, Math.floor(g.gy - placing.h / 2 + 0.5)));
-      placing.valid = Game.isAreaFree(placing.gx, placing.gy, placing.w, placing.h, placing.moveUid);
+      placing.valid = Game.isAreaFree(placing.gx, placing.gy, placing.w, placing.h, placing.moveUid, placing.bid || placing.moveInfoId);
       if (e.touches) e.preventDefault();
       return;
     }
@@ -941,7 +1171,7 @@
     if (placing && !placing.moveUid) {
       placing.rotated = !placing.rotated;
       [placing.w, placing.h] = [placing.h, placing.w];
-      if (placing.gx != null) placing.valid = Game.isAreaFree(placing.gx, placing.gy, placing.w, placing.h);
+      if (placing.gx != null) placing.valid = Game.isAreaFree(placing.gx, placing.gy, placing.w, placing.h, null, placing.bid);
     }
   };
 

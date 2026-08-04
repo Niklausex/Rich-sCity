@@ -121,6 +121,9 @@ CATALOG.BUILDINGS = [
   { id: 'aquarium', cat: 'business', name: '海洋馆', icon: '🐋', cost: 4200, income: 950, w: 4, h: 3, fl: 2, color: '#2a7ab5', desc: '看鲸鱼和海豚，营业额950元/周', unlockIncome: 3500 },
   // —— 公共 ——
   { id: 'road', cat: 'public', name: '道路', icon: '🛣️', cost: 5, happy: 0, w: 1, h: 1, fl: 0, color: '#5c5c5c', desc: '连接城市的道路，居民和汽车都爱走', unlockIncome: 0 },
+  { id: 'rail', cat: 'public', name: '铁轨', icon: '🛤️', cost: 30, happy: 0, w: 1, h: 1, fl: 0, color: '#8a7050', desc: '铺在草地上的铁轨，火车沿轨道跑（需要火车站）', unlockIncome: 800 },
+  { id: 'bridge_road', cat: 'public', name: '公路桥', icon: '🌉', cost: 200, happy: 3, w: 2, h: 1, fl: 0.5, color: '#9a9aa5', desc: '只能造在河面上，汽车和居民可以过河', unlockIncome: 300 },
+  { id: 'bridge_rail', cat: 'public', name: '铁路桥', icon: '🌁', cost: 300, happy: 3, w: 2, h: 1, fl: 0.5, color: '#7a8595', desc: '只能造在河面上，火车轰隆隆过大桥', unlockIncome: 1000 },
   { id: 'park', cat: 'public', name: '小公园', icon: '🌳', cost: 80, happy: 5, w: 2, h: 2, fl: 0.2, color: '#4a9a4a', desc: '绿树成荫，幸福度+5', unlockIncome: 0 },
   { id: 'flower', cat: 'public', name: '花园', icon: '🌷', cost: 100, happy: 5, w: 1, h: 1, fl: 0.2, color: '#c05a8a', desc: '五彩的花朵，幸福度+5', unlockIncome: 0 },
   { id: 'fountain', cat: 'public', name: '喷泉广场', icon: '⛲', cost: 160, happy: 7, w: 2, h: 2, fl: 0.3, color: '#5a9ab5', desc: '哗啦啦的喷泉，幸福度+7', unlockIncome: 0 },

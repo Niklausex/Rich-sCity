@@ -252,7 +252,10 @@
           <h4>🗺️ 城市地块：${S.mapW} × ${S.mapH} 格</h4>
           <p>${Game.expandCost() != null ? `扩建一次 +8列+6行（还能扩 ${Game.EXPAND_MAX - Game.expandLevel()} 次）` : '🎉 地块已扩到最大！'}</p>
         </div>
-        ${Game.expandCost() != null ? `<button class="btn btn-green" id="btn-expand-land">💰${Game.expandCost()} 扩建地块</button>` : ''}
+        ${Game.expandCost() != null ? `<div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-green" id="btn-expand-land">🌱💰${Game.expandCost()} 扩建草地</button>
+          <button class="btn btn-blue" id="btn-expand-water">🌊💰${Game.expandCost()} 扩建水域</button>
+        </div>` : ''}
       </div></div>
       <div class="panel-tabs">${cats.map(c => `<button class="ptab ${buildTab === c[0] ? 'active' : ''}" data-tab="${c[0]}">${c[1]}</button>`).join('')}</div><div class="shop-grid">`;
     for (const b of CATALOG.BUILDINGS.filter(x => x.cat === buildTab)) {
@@ -268,9 +271,8 @@
     }
     html += '</div>';
     panelContent.innerHTML = html;
-    const exBtn = $('btn-expand-land');
-    if (exBtn) exBtn.onclick = () => {
-      const r = Game.expandLand();
+    const doExpand = (type) => {
+      const r = Game.expandLand(type);
       toast(r.msg, r.ok ? 'gold' : 'bad');
       if (r.ok) {
         confetti(20);
@@ -279,6 +281,10 @@
         refreshTop();
       }
     };
+    const exBtn = $('btn-expand-land');
+    if (exBtn) exBtn.onclick = () => doExpand('land');
+    const exWBtn = $('btn-expand-water');
+    if (exWBtn) exWBtn.onclick = () => doExpand('water');
     panelContent.querySelectorAll('.ptab').forEach(t => t.onclick = () => { buildTab = t.dataset.tab; renderBuild(); });
     panelContent.querySelectorAll('[data-build]').forEach(el => el.onclick = () => {
       const bid = el.dataset.build;

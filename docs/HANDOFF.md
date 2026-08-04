@@ -1,7 +1,7 @@
 # 技术交接文档（Agent Handoff）
 
 > 目的：任何新接手的 Agent / 开发者，只读本文档 + README 即可完整理解项目现状、关键约定与待办。
-> 最后更新：2026-08-04（main @ main HEAD，v3.9（题库扩容：语文半生成器 + 科学/通识/判断题扩充））
+> 最后更新：2026-08-04（main @ main HEAD，v4.0（地形河流 + 铁轨/桥梁 + 火车沿轨/轮船巡游/飞机贴图 + 扩地二选一））
 > ⚠️ **文档更新规约（对所有 Agent 强制）**：每次功能变更后，必须同步更新 ①本文档（模块地图/版本演进/待办/坑）②README（功能清单/数据架构/最后更新行）③本头部的提交号。这是用户明确要求，目的是任何模型可无缝接手。
 
 ---
@@ -101,6 +101,7 @@
 | v3.4 | `0d0490a` | **五科课程重构**：牛津树英语+1年级/听音选词TTS/ORT阅读；每日跟读+家长审批(20元+快乐5)；语文创作题(打字≥20字恒奖励)；数学逻辑思维11类(60/40)；美式通识50题；科技科学32题；遗忘曲线巩固复习(7天/20%)；设置内家长区(乘法门/作品集/学习概况)；qkey 去重体系 |
 | v3.4.1 | `fb9dbb8` | **跟读修复+扩容**：TTS 引擎重写修"点了没声音"（Chrome cancel后立刻speak被吞→150ms延迟；单条长语音~15s被掐→分句队列；voices异步→缓存+onvoiceschanged；5s resume keepalive；tts-state事件/stopSpeak/isSpeaking）；15篇跟读短文全部扩至 ~250-280 词（约10倍，多段落+对话，标题不变故存档轮播不受影响）；跟读面板分段渲染+逐段🔊+⏹停止+无声排查提示；新增 tests/e2e/readingui.mjs |
 | v3.5 | `4bd443f` | **跟读暂停+慢速+车位修复+地块扩建**：TTS 引擎支持暂停/继续（pausedByUser/resumeHook/keepalive 守卫），每段+主栏 ⏸暂停按钮全局同步；慢速 0.72→0.6（整篇慢速与逐段统一）；停车场贴图校正 FLAT_SPRITES/drawFlatSprite（贴图沥青菱形比例 0.636 vs 网格 0.5 → 压扁 k≈0.786+锚点钉齐，修偏小+悬空）；地块扩建 expandLand（500/1500/4000 三档，+8×6/次，最多3次至56×42，建造面板顶部卡片）；migrate 补 mapW/mapH；新增 tests/e2e/expandtest.mjs、scaleshot.mjs，readingui.mjs 加暂停断言 |
+| v4.0 | （本次） | **地形河流+铁轨桥梁+三栖载具**：S.terrain 地面层（'g'/'w'，水与草同层同画法 river_tile 交替）；genTerrain 竖直2格宽河+拐弯（拐弯行全水保船通航）+新档预置迎宾桥；migrate 老档补直河避建筑；catalog 新增 rail/bridge_road/bridge_rail；isAreaFree(+bid) 水面规则（桥必须全水、其他建筑禁水）；drawRailIso 邻接自动选直轨/弯轨/道口+等距旋转矩阵 railRot；trains/ships 克隆巡路模式（船需 harborByWater）；flyer 换 veh_ 贴图；扩地二选一（草地/水域双按钮）；批2素材7张洪水填充抠白重入库（首次入库丢alpha的修复）；新增 terraintest.mjs 17断言 |
 | v3.6 | `07aa564` | **家长后台+手动存档**：新增 `/admin` 独立页（admin.js：账号密码登录 SHA-256+盐、首设/登录/改密/乘法门忘记密码重置、跟读审批、学习概况、作品集、存档导出导入；无存档时不 Game.init 防误建档）；游戏内设置面板删掉乘法门家长区（全部迁 /admin）+ 存档卡片（立即保存/导出/导入 SaveIO）+ 家长后台链接；顶栏 💾保存按钮；main.js storage 事件跨页同步；文案"设置→家长区"→"家长后台"；新增 tests/e2e/admintest.mjs（10步全流程），v34ui.mjs 家长门段改为 v3.6 设置断言 |
 
 ## 10. 测试（tests/e2e/，playwright-core 无头浏览器）
@@ -211,6 +212,30 @@ node tests/e2e/admintest.mjs                          # v3.6 家长后台全流�
 2. Playwright 浏览器用 `chromium.launch()`（走 ~/.cache/ms-playwright），不要指定 executablePath
 3. ChineseGen 干扰项已人工保证"安全"（不与正确项近义/反义/可搭配），新增词条时须遵守此规则，否则会出现多个可选正确答案
 
-## v4.0 规划（已与家长确认，等待美术资产）
-- 家长自行生成美术：先重绘 ground_grass/ground_grass2/road_tile/road_crosswalk（512×256 等距菱形铺满），再按清单生成 河流/铁轨/桥梁地形砖 + 火车5/船5/飞机6 贴图（详见 turn-12 对话内清单，命名 river_tile/river_bend/rail_tile/rail_curve/rail_cross/bridge_road/bridge_rail/veh_steam 等）
-- 玩法：地形层 S.terrain（grass/river/rail）；扩地二选一（草地/水域）；铁轨可铺设（≥15 建筑解锁）；火车沿轨/船在水/飞机停机+飞行贴图（复用 cars-on-road 巡路模式）；旧档迁移自动生成不压建筑的河流
+## v4.0 地形河流 + 铁轨桥梁 + 三栖载具（本节为最新权威信息）
+
+### 地形层（用户确认的架构：河流=地面层瓦片，铁轨=独立可放置物）
+- `S.terrain`：mapH 个字符串（每行 mapW 字符），'g'=草 'w'=水。**水和草同层同画法**（drawGround 里 river_tile/river_tile2 交替，无贴图画蓝菱形+波光），没有边缘/拐弯特殊瓦。
+- `state.js genTerrain(mapW,mapH,{bends,avoid})`：竖直 2 格宽河 + 可选 1-2 处拐弯（拐弯行旧列→新列全水保证船能通航）；避开 avoid 建筑；新档预置「迎宾桥」（bridge_road）。
+- `migrate()`：老档无 terrain → 自动生成直河避开全部已有建筑（无可行列则全草）。
+- `game.js`：`terrainAt/isWater`；`isAreaFree(x,y,w,h,ignoreUid,bid)` 末参 bid 实现水面规则——**桥（bridge_road/bridge_rail）必须整座在水上，其他建筑不能碰水**；map.js 两处 placing.valid 也传 bid（否则桥预览永远红）。
+- `expandLand(type)`：'land'|'water' 二选一，新增行列用对应字符填充；panels.js 扩建卡片双按钮（🌱草地/🌊水域）。
+
+### 铁轨/桥（catalog 新条目，都是普通建筑走 buildings）
+- rail（1×1 ¥30 解锁800）/ bridge_road（2×1 ¥200 解锁300）/ bridge_rail（2×1 ¥300 解锁1000）。
+- `drawRailIso`（map.js）：邻接自动选型——直轨 rail_tile（原图沿 y 轴）/弯轨 rail_curve（原图连 +x/+y）/公路垂直相邻→ rail_cross。**朝向用等距世界旋转矩阵 railRot(k)：ctx.transform(0,0.5,-2,0)=旋90°**（菱形映射回菱形，比水平镜像通用，弯轨4向全覆盖）。
+- `isRoad` 含 bridge_road，`isRail` 含 bridge_rail，`isWalkable` 水面仅 bridge_road 可过 → 小人/汽车走公路桥，火车走铁路桥。
+
+### 三栖载具（均克隆 cars-on-road 巡路模式）
+- trains[]：拥有 train 型载具+有轨道即开；ships[]：需 `harborByWater()`（港口周长邻水）才出航，漫游 isWater 格；flyer 改用 veh_ 贴图（镜像朝右飞+微抬头），emoji 兜底。drawTrain（TW*1.3）/drawShip（TW*1.1+浮沉 bob+白色尾波）。
+
+### 素材入库教训（重要！）
+- 第二批 7 张地形瓦首次入库时 sharp 丢了 alpha → 白底。修复：**从图像边缘泛洪填充抚白（阈值≥235）**，保留画面内部白色细节（道口栏杆条纹），再 resize 512×256 / 桥 trim→520 宽。脚本在对话历史，核心：ensureAlpha+边缘BFS。
+- rail_tile 实测轨道沿 y 轴（NE/SW 边不透明）；rail_curve 连 +x/+y（SE/SW）；用边中点 alpha 采样脚本可复测。
+- 素材总数 109（manifest 自动生成，勿手改）。river_bend 已废弃删除。
+- ground_grass/ground_grass2/road_tile/road_crosswalk 未动（用户后续自行重绘）。
+
+### 测试
+- 新增 tests/e2e/terraintest.mjs（17 断言：新档河流/迎宾桥、水面建造规则 5 项、铁轨购买、扩地二选一、老档迁移、载具主循环冒烟）。回归 banktest/quiztest/v34test/configtest/expandtest 全过。
+- 注意：测试里解锁建筑要设 `S.stats.peakIncome=9999`；存档 key 是 `richs_city_save_v1`；重建存档用 `Game.init()`。
+- 沙箱教训：连续多次 playwright launch 可能把沙箱内存打死致冻结 → ResetSandbox 可恢复（文件不丢），截图脚本加 timeout 60 包裹。
