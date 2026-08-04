@@ -1,7 +1,7 @@
 # 技术交接文档（Agent Handoff）
 
 > 目的：任何新接手的 Agent / 开发者，只读本文档 + README 即可完整理解项目现状、关键约定与待办。
-> 最后更新：2026-08-01（main @ 4bd443f，v3.5）
+> 最后更新：2026-08-04（main @ 07aa564，v3.6）
 > ⚠️ **文档更新规约（对所有 Agent 强制）**：每次功能变更后，必须同步更新 ①本文档（模块地图/版本演进/待办/坑）②README（功能清单/数据架构/最后更新行）③本头部的提交号。这是用户明确要求，目的是任何模型可无缝接手。
 
 ---
@@ -28,8 +28,8 @@
 
 | 文件 | 职责 |
 |---|---|
-| `src/index.tsx` | Hono 入口，输出 HTML 骨架 + 引 CDN（Tailwind）+ 静态 JS |
-| `public/static/js/main.js` | 启动、主循环、事件绑定 |
+| `src/index.tsx` | Hono 入口，输出 HTML 骨架 + 引 CDN（Tailwind）+ 静态 JS；v3.6 新增 `/admin` 路由（家长后台独立 HTML，内联样式，只挂4个数据/引擎脚本+admin.js）；顶栏加 💾保存按钮 |
+| `public/static/js/main.js` | 启动、主循环、事件绑定；**v3.6**：顶栏 `#btn-save-now` 💾保存按钮（Game.save+toast）、`storage` 事件监听（/admin 改存档→本页 toast+1.2s 后 reload 同步） |
 | `public/static/js/engine/state.js` | 存档读写、存档迁移（含 v3.1 的 `POP_TO_INCOME` 老档兑换；v3.5 补 `mapW/mapH` 回填 32×24） |
 | `public/static/js/engine/game.js` | 经济/税收/幸福度/解锁逻辑（`weeklyIncome()` / `peakIncome()` / `isUnlocked()` / `nextUnlock()`）+ **答题额度系统**：`DAILY_LIMIT=50`（每居民每日上限）、`SUBJECT_WEIGHTS`（英30/科25/通25/数12/语8）、`rollSubject()`、`askedCount/canAsk/refillQuestion`、`S.askedToday` 按居民计数（每天清零）；**已掌握/错题本**：`S.mastered`（答对题面，永久排除，连线题除外，上限5000）、`S.wrongPool`（答错题完整对象，上限200，答对移出）、`drawFor` 30%概率复习错题（`q.review=true`，`reshuffleQuestion` 重洗选项），抽新题排除 recent+mastered；questions.js 各静态库耗尽时返回 null 逐级回退到生成器（数学生成器带排除重试）；**v3.4 新增**：`qKey(q)`（听音/创作题用 `q.qkey` 去重）、`S.reviewQueue` 遗忘曲线（首次答对入队 {key,day,snap}，7天后 `drawFor` 20%概率巩固复习 `q.review='consolidate'`，再对→移出队列真掌握，答错→移出 mastered 重学并入错题本，上限500）、`drawFor` 语文35%概率出创作题（`S.createdToday<2`）、`submitWriting`（存 `S.writings` 上限200 + 恒定奖励）、`todayReading/markReadingDone/approveReading`（每日跟读 todo→pending→approved，审批发 20元+快乐5，`newDayQuestions` 按 `(day-1)%15` 轮播短文并清零 createdToday）；**v3.5 地块扩建**：`EXPAND_STEP={w:8,h:6}`/`EXPAND_MAX=3`/`expandLevel()=(mapW-32)/8`/`expandCost()` 取 `[500,1500,4000][lv]` 否则 null/`expandLand()` 扣钱改 `S.mapW/S.mapH` 并存档（32×24→最大56×42；地面循环与 fitView 实时读 S.mapW/S.mapH，扩建纯状态变更无需重建） |
 | `public/static/js/data/catalog.js` | **唯一数据源**：59 建筑（含 14 装饰 deco_*）、39 车辆 VEHICLES、8 帽子 HATS、24 招募角色、`RECRUIT_ENABLED=false` |
@@ -39,8 +39,9 @@
 | `public/static/js/data/questions.js` | 题目引擎：数学生成器（计算 + **LogicGen 逻辑思维11类**，选择题 60/40 分流）+ 英语词汇生成器（词→义/义→词/拼写辨析/单词连线/字母填空）+ **英语难度+1年级**（`g=min(g+1,6)`）+ `genListenChoice` 听音选词（`q.say`+`qkey='listen:'+word`，干扰项长度±1防猜）+ `drawCreative` 创作题 + 含英文引句的题自动提取 `q.say`（答案在选项中则不提取防漏答案）+ 抽题入口 `drawQuestion` |
 | `public/static/js/render/map.js` | 等距 2.5D Canvas 渲染（见 §4 约定）；v3.5：`FLAT_SPRITES` 平铺贴图校正表 + `drawFlatSprite`（停车场专用：按沥青菱形宽缩放、垂直压扁 k≈0.786 对齐网格 0.5 比例、锚点(266,349)钉到占地前角 pC+2px，修"车位偏小+悬空"） |
 | `public/static/js/render/assets.js` | 素材加载器：`Assets.opt(id)` 按 manifest 加载，缺失静默回退 emoji/程序绘制（不产生 404） |
-| `public/static/js/ui/panels.js` | 侧栏各面板（居民/建造/车库/市政/礼物/**跟读**/设置）；v3.4：`renderReading` 每日跟读（TTS 慢速0.72/正常0.95、"我完成跟读啦"→pending；v3.4.1：长文按 `\\n\\n` 分段渲染、每段前 🔊 逐段播放0.8x、⏹停止按钮、模块级 `document` 监听 `tts-state` 事件控制停止按钮显隐、点播放1.8s后仍无声则显示排查提示、中文大意收进 `<details>`）+ 设置内**家长区**（两位数乘法门 `parentUnlocked` 会话级解锁 → 审批跟读发奖 / 作品集最近20篇 / 学习概况）+ `badge-reading` 未完成提醒；**v3.5**：跟读整篇慢速与逐段🔊统一 `SLOW=0.6`（正常 0.95）、每段旁 + 主栏各一个 `.btn-tts-pause` ⏸暂停/▶继续按钮（全局单播放实例，任一按钮均控当前播放，`tts-state {speaking,paused}` 事件统一同步显隐/文案/绿色态）、`renderBuild` 顶部地块卡片（当前尺寸+`#btn-expand-land` 扩建按钮，成功后 confetti+fitView+刷新，扩满显示🎉） |
+| `public/static/js/ui/panels.js` | 侧栏各面板（居民/建造/车库/市政/礼物/**跟读**/设置）；v3.4：`renderReading` 每日跟读（TTS 慢速0.72/正常0.95、"我完成跟读啦"→pending；v3.4.1：长文按 `\\n\\n` 分段渲染、每段前 🔊 逐段播放0.8x、⏹停止按钮、模块级 `document` 监听 `tts-state` 事件控制停止按钮显隐、点播放1.8s后仍无声则显示排查提示、中文大意收进 `<details>`）+ 设置内**家长区**（两位数乘法门 `parentUnlocked` 会话级解锁 → 审批跟读发奖 / 作品集最近20篇 / 学习概况）+ `badge-reading` 未完成提醒；**v3.5**：跟读整篇慢速与逐段🔊统一 `SLOW=0.6`（正常 0.95）、每段旁 + 主栏各一个 `.btn-tts-pause` ⏸暂停/▶继续按钮（全局单播放实例，任一按钮均控当前播放，`tts-state {speaking,paused}` 事件统一同步显隐/文案/绿色态）、`renderBuild` 顶部地块卡片（当前尺寸+`#btn-expand-land` 扩建按钮，成功后 confetti+fitView+刷新，扩满显示🎉）；**v3.6**：设置面板重构——旧"家长区乘法门"整块删除（parentGateHtml/parentAreaHtml/parentUnlocked 已移除，家长功能全部迁到 /admin），存档卡片加 `#btn-save-manual` 立即保存/`#btn-save-export` 导出/`#btn-save-import`+隐藏 file input 导入，新增"🔐家长后台"卡片（`<a href="/admin" target="_blank">`）；模块内 `SaveIO.exportSave/importSave`（与 admin.js 同格式同校验） |
 | `public/static/js/ui/quiz.js` | 答题弹窗；v3.4.1：**TTS 引擎重写**——`speak(text,rate,onEnd)` 分句切块（≤180字符）队列播放防 Chrome ~15s 掐断、`cancel()` 后延迟 150ms 再 speak 修 Chrome 静默吞掉 bug、5s `resume()` keepalive 防中途暂停、`speakSession` 计数器作废旧队列、`getVoices()` 缓存+`onvoiceschanged` 监听、播放状态派发 `tts-state` CustomEvent、导出 `Quiz.speak/stopSpeak/isSpeaking`、`q.say` 时插 🔊 再听一遍按钮（选择/填空/判断）、听音题自动播放、`renderCreate` 创作题（textarea ≥20字解锁提交，不判对错恒奖励）、🔁巩固复习徽标（紫）与 📖错题复习（橙）区分；**v3.5 暂停/继续**：`pausedByUser` 标志 + `pauseSpeak/resumeSpeak/isPaused` 导出、keepalive 在用户暂停时跳过 resume、暂停落在分块间隙时用 `resumeHook` 挂起队列（resumeSpeak 调 hook 续播）、`tts-state` detail 扩为 `{speaking,paused}` |
+| `public/static/js/admin.js` | **v3.6 家长后台**（`/admin` 独立页，脚本只加载 data3/catalog/state/game 四件套，无渲染层）：账号密码登录（SHA-256+随机盐存 `richs_city_admin_auth`，会话标记 sessionStorage `richs_city_admin_session`；首次访问走设置流程；忘记密码→两位数乘法验证后重置）；仪表盘=跟读审批(调 `Game.approveReading`)/学习概况/作品集20篇/存档管理(导出/导入)/修改密码；⚠️ **只有存在存档时才调 `Game.init()`**（无存档时 init 会新建存档，必须避免）；导出格式 `{_game:'richs_city',_ver:1,_exportedAt,save}`，导入兼容裸存档 JSON、校验 buildings/residents/day 字段、覆盖前 confirm、成功后 reload 走 migrate |
 | `tools/build-asset-manifest.mjs` | 扫描 `public/static/assets/` 生成 `manifest.json`（webp 优先于 png） |
 
 ## 4. 渲染关键约定（改渲染前必读）
@@ -100,6 +101,7 @@
 | v3.4 | `0d0490a` | **五科课程重构**：牛津树英语+1年级/听音选词TTS/ORT阅读；每日跟读+家长审批(20元+快乐5)；语文创作题(打字≥20字恒奖励)；数学逻辑思维11类(60/40)；美式通识50题；科技科学32题；遗忘曲线巩固复习(7天/20%)；设置内家长区(乘法门/作品集/学习概况)；qkey 去重体系 |
 | v3.4.1 | `fb9dbb8` | **跟读修复+扩容**：TTS 引擎重写修"点了没声音"（Chrome cancel后立刻speak被吞→150ms延迟；单条长语音~15s被掐→分句队列；voices异步→缓存+onvoiceschanged；5s resume keepalive；tts-state事件/stopSpeak/isSpeaking）；15篇跟读短文全部扩至 ~250-280 词（约10倍，多段落+对话，标题不变故存档轮播不受影响）；跟读面板分段渲染+逐段🔊+⏹停止+无声排查提示；新增 tests/e2e/readingui.mjs |
 | v3.5 | `4bd443f` | **跟读暂停+慢速+车位修复+地块扩建**：TTS 引擎支持暂停/继续（pausedByUser/resumeHook/keepalive 守卫），每段+主栏 ⏸暂停按钮全局同步；慢速 0.72→0.6（整篇慢速与逐段统一）；停车场贴图校正 FLAT_SPRITES/drawFlatSprite（贴图沥青菱形比例 0.636 vs 网格 0.5 → 压扁 k≈0.786+锚点钉齐，修偏小+悬空）；地块扩建 expandLand（500/1500/4000 三档，+8×6/次，最多3次至56×42，建造面板顶部卡片）；migrate 补 mapW/mapH；新增 tests/e2e/expandtest.mjs、scaleshot.mjs，readingui.mjs 加暂停断言 |
+| v3.6 | `07aa564` | **家长后台+手动存档**：新增 `/admin` 独立页（admin.js：账号密码登录 SHA-256+盐、首设/登录/改密/乘法门忘记密码重置、跟读审批、学习概况、作品集、存档导出导入；无存档时不 Game.init 防误建档）；游戏内设置面板删掉乘法门家长区（全部迁 /admin）+ 存档卡片（立即保存/导出/导入 SaveIO）+ 家长后台链接；顶栏 💾保存按钮；main.js storage 事件跨页同步；文案"设置→家长区"→"家长后台"；新增 tests/e2e/admintest.mjs（10步全流程），v34ui.mjs 家长门段改为 v3.6 设置断言 |
 
 ## 10. 测试（tests/e2e/，playwright-core 无头浏览器）
 
@@ -111,6 +113,7 @@ node mastertest.mjs                                   # v3.3 学习闭环专项
 cd /home/user/webapp && node tests/e2e/expandtest.mjs # v3.5 地块扩建（穷/富/满级/UI/存档持久化）
 node tests/e2e/readingui.mjs                          # 跟读面板 + ⏸暂停按钮三态（speaking/paused/stopped）
 node tests/e2e/scaleshot.mjs                          # 建筑摆放截图（含停车场比例目检，输出 /tmp/scale_check.png）
+node tests/e2e/admintest.mjs                          # v3.6 家长后台全流程（首设/审批/登录/导出导入回滚/忘记密码）
 ```
 - 依赖 `playwright-core`：不在 webapp/node_modules 里，靠 Node 向上解析到 `/home/user/node_modules`（沙盒重建后若缺失：`cd /home/user && npm i playwright-core`）
 - 脚本内测试完会 `localStorage.clear()` 或注入状态，**不要对着用户正在玩的存档跑**
@@ -125,6 +128,7 @@ node tests/e2e/scaleshot.mjs                          # 建筑摆放截图（含
 - 不要给美术提示词里加任何 LEGO/凸点字眼（历史上犯过一次，已在 7a0d70f 修正）
 - **TTS 三大 Chrome 坑（v3.4.1 已在 quiz.js 引擎层修掉，改 TTS 代码前必读）**：① `speechSynthesis.cancel()` 之后同步调 `speak()` 会被 Chrome 静默丢弃 → 必须延迟 ~150ms；② 单条 utterance 播 ~15s 会被自动掐断 → 长文必须分句切块（≤180字符）经 `onend` 串成队列；③ 播放中会被自动 pause → 需 5s 间隔 `resume()` keepalive。另：首次 `getVoices()` 返回空数组（已缓存+onvoiceschanged 监听）；无网络依赖但音色随系统而异；headless 浏览器无语音引擎，E2E 里只能用 `tts-state` 事件桩测 UI 反馈（见 readingui.mjs）
 - **平铺型贴图（停车场类 fl:0）不能走通用 drawBuildingSprite**：美术贴图自身的等距投影角度往往和游戏网格（宽:高=2:1，比例0.5）不一致——parking.webp 实测沥青菱形 517×329=0.636，直接按占地宽缩放会"缩小悬空+四周露草"。解法见 map.js `FLAT_SPRITES` 校正表：逐贴图实测 {imW,imH,lotW,lotH,anchorX,anchorY}（用像素测量沥青菱形四角），横向按占地菱形宽定 scale、纵向乘压扁系数 k、把贴图底角精确钉到占地前角 pC（+2px 咬地）。**新增其他平铺贴图（广场/球场等）必须同样实测标定后加进 FLAT_SPRITES，不要目测**
+- **/admin 页复用 game.js 的注意事项**：admin.js 只挂 questions-data3/catalog/state/game 四个脚本（够 approveReading/READ_ALOUD 用）；**必须先检查 localStorage 有无存档再调 `Game.init()`**——无存档时 init 会静默新建一份存档，导致孩子首次进游戏不触发欢迎流程。家长账号是纯前端本机方案（SHA-256+盐存 localStorage），防的是孩子、不防技术攻击，属有意取舍；E2E 里 playwright 覆盖 confirm/prompt 用 `page.evaluate(() => { window.confirm = () => true; })`
 - 跟读短文 `READ_ALOUD` 的 **title 是轮播锚点语义**（`(day-1)%15` 按下标轮播）：改内容可以，别增删/重排条目，否则老存档当天短文会跳变
 - 题目去重键统一走 `Game.qKey(q)`（=`q.qkey || q.q`）——新增题型若题面是通用文案必须给 `qkey`，否则会在 mastered/recent 里互相碰撞
 - 家长区解锁状态 `parentUnlocked` 是内存变量（刷新页面重新上锁），故意不落存档
